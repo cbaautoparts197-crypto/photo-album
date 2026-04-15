@@ -2,8 +2,8 @@ const { createClient } = require('@libsql/client');
 require('dotenv').config({ path: require('path').resolve(__dirname, '.env') });
 
 // 优先使用 Turso 云数据库，降级到本地 SQLite 文件
-const url = process.env.TURSO_DATABASE_URL;
-const authToken = process.env.TURSO_AUTH_TOKEN;
+const url = (process.env.TURSO_DATABASE_URL || '').trim();
+const authToken = (process.env.TURSO_AUTH_TOKEN || '').trim();
 
 if (!url) {
   throw new Error('TURSO_DATABASE_URL is required. Please set it in .env or Vercel environment variables.');
