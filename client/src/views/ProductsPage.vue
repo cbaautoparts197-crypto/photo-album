@@ -175,12 +175,70 @@
                   </span>
                 </div>
                 <p v-if="detailProduct.remark" class="detail-remark">{{ detailProduct.remark }}</p>
+
+                <!-- 社媒分享 -->
+                <div class="detail-share-section">
+                  <div class="detail-section-label">{{ t('shareTitle') }}</div>
+                  <div class="share-btns">
+                    <a :href="shareWhatsApp" target="_blank" class="share-btn share-btn-whatsapp" :title="t('whatsappShare')">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/></svg>
+                    </a>
+                    <a :href="shareFacebook" target="_blank" class="share-btn share-btn-facebook" :title="t('facebookShare')">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                    </a>
+                    <a :href="shareTwitter" target="_blank" class="share-btn share-btn-twitter" :title="t('twitterShare')">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                    </a>
+                    <button class="share-btn share-btn-copy" :title="t('copyLink')" @click="copyProductLink">
+                      <svg v-if="!copied" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                      <svg v-else width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- 询价表单 -->
+                <div class="detail-inquiry-section">
+                  <div class="detail-section-label">{{ t('inquiryTitle') }}</div>
+                  <form class="inquiry-form" @submit.prevent="sendInquiry">
+                    <div v-if="inquiryMessage" class="inquiry-message" :class="{ 'inquiry-message-success': inquirySent }">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                      {{ inquiryMessage }}
+                    </div>
+                    <div class="inquiry-row">
+                      <div class="inquiry-field">
+                        <label>{{ t('inquiryName') }} *</label>
+                        <input v-model="inquiryForm.name" type="text" required :placeholder="t('inquiryName')" />
+                      </div>
+                      <div class="inquiry-field">
+                        <label>{{ t('inquiryEmail') }} *</label>
+                        <input v-model="inquiryForm.email" type="email" required :placeholder="t('inquiryEmail')" />
+                      </div>
+                    </div>
+                    <div class="inquiry-field">
+                      <label>{{ t('inquiryPhone') }}</label>
+                      <input v-model="inquiryForm.phone" type="tel" :placeholder="t('inquiryPhone')" />
+                    </div>
+                    <div class="inquiry-field">
+                      <label>{{ t('inquiryRemark') }}</label>
+                      <textarea v-model="inquiryForm.remark" rows="3" :placeholder="t('inquiryRemarkPlaceholder')"></textarea>
+                    </div>
+                    <!-- 产品信息（隐藏在表单中随邮件发送） -->
+                    <input type="hidden" :value="detailProduct.name" />
+                    <button type="submit" class="btn btn-primary inquiry-submit-btn" :disabled="inquirySending">
+                      <svg v-if="!inquirySending" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                      <span v-else class="inquiry-spinner"></span>
+                      {{ inquirySending ? t('inquirySending') : t('inquirySend') }}
+                    </button>
+                  </form>
+                </div>
+
+                <!-- 直接联系方式 -->
                 <div class="detail-actions">
-                  <a v-if="company.whatsapp" :href="'https://wa.me/' + company.whatsapp.replace(/[^0-9]/g, '')" target="_blank" class="btn btn-primary detail-contact-btn">
+                  <a href="https://wa.me/8618030192592" target="_blank" class="btn btn-outline detail-contact-btn">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/></svg>
                     WhatsApp
                   </a>
-                  <a v-if="company.email" :href="'mailto:' + company.email" class="btn btn-outline detail-contact-btn">
+                  <a v-if="company.email" :href="'mailto:' + company.email + '?subject=Inquiry: ' + encodeURIComponent(detailProduct.name)" class="btn btn-outline detail-contact-btn">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
                     {{ t('email') }}
                   </a>
@@ -198,7 +256,7 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-import { getProducts, getCategories, getCompanyInfo } from '../api/modules';
+import { getProducts, getCategories, getCompanyInfo, submitInquiry } from '../api/modules';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -226,15 +284,71 @@ const sortBy = ref('newest');
 const sidebarOpen = ref(false);
 const detailProduct = ref(null);
 
+// 询价表单
+const inquiryForm = ref({ name: '', email: '', phone: '', remark: '' });
+const inquirySending = ref(false);
+const inquirySent = ref(false);
+const inquiryMessage = ref('');
+const copied = ref(false);
+
+// 社媒分享链接
+const shareText = computed(() => detailProduct.value ? `${detailProduct.value.name} - ${company.value.company_name_en || 'RBS Auto Parts'}` : '');
+const productPageUrl = computed(() => {
+  const base = window.location.origin + window.location.pathname;
+  return detailProduct.value ? `${base}#/products` : base;
+});
+const shareWhatsApp = computed(() => `https://wa.me/8618030192592?text=${encodeURIComponent(shareText.value + ' ' + productPageUrl.value)}`);
+const shareFacebook = computed(() => `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(productPageUrl.value)}&quote=${encodeURIComponent(shareText.value)}`);
+const shareTwitter = computed(() => `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText.value)}&url=${encodeURIComponent(productPageUrl.value)}`);
+
+function copyProductLink() {
+  navigator.clipboard.writeText(productPageUrl.value).then(() => {
+    copied.value = true;
+    setTimeout(() => { copied.value = false; }, 2000);
+  });
+}
+
+function openDetail(p) {
+  detailProduct.value = p;
+  inquiryForm.value = { name: '', email: '', phone: '', remark: '' };
+  inquirySent.value = false;
+  inquiryMessage.value = '';
+}
+
+// 发送询价（提交到后台数据库）
+async function sendInquiry() {
+  if (!inquiryForm.value.name.trim() || !inquiryForm.value.email.trim()) {
+    inquiryMessage.value = t('inquiryNameRequired');
+    inquirySent.value = false;
+    return;
+  }
+  inquirySending.value = true;
+  try {
+    const p = detailProduct.value;
+    await submitInquiry({
+      product_id: p.id,
+      product_name: p.name,
+      oe_number: p.oe_number || '',
+      category_name: p.category_name_zh || '',
+      customer_name: inquiryForm.value.name.trim(),
+      customer_email: inquiryForm.value.email.trim(),
+      customer_phone: inquiryForm.value.phone?.trim() || '',
+      customer_message: inquiryForm.value.remark?.trim() || '',
+    });
+    inquirySent.value = true;
+    inquiryMessage.value = t('inquirySuccess');
+  } catch (e) {
+    inquirySent.value = false;
+    inquiryMessage.value = e.response?.data?.message || e.message;
+  }
+  inquirySending.value = false;
+}
+
 function selectCategory(id) {
   selectedCategory.value = id;
   page.value = 1;
   sidebarOpen.value = false;
   loadProducts();
-}
-
-function openDetail(p) {
-  detailProduct.value = p;
 }
 
 async function loadProducts() {
@@ -723,7 +837,7 @@ onMounted(async () => {
   background: white;
   border-radius: var(--radius-xl);
   width: 100%;
-  max-width: 800px;
+  max-width: 920px;
   max-height: 90vh;
   overflow-y: auto;
   position: relative;
@@ -771,10 +885,12 @@ onMounted(async () => {
 }
 
 .detail-info {
-  width: 280px;
+  width: 360px;
   flex-shrink: 0;
-  padding: 32px 28px;
+  padding: 28px 24px;
   border-left: 1px solid var(--gray-100);
+  overflow-y: auto;
+  max-height: 90vh;
 }
 
 .detail-title {
@@ -832,6 +948,172 @@ onMounted(async () => {
   width: 100%;
   justify-content: center;
   gap: 8px;
+}
+
+/* ==================== Share Section ==================== */
+.detail-section-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--gray-900);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 12px;
+}
+
+.detail-share-section {
+  margin-bottom: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--gray-100);
+}
+
+.share-btns {
+  display: flex;
+  gap: 8px;
+}
+
+.share-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-light);
+  background: white;
+  cursor: pointer;
+  transition: var(--transition);
+  color: var(--gray-600);
+  text-decoration: none;
+}
+
+.share-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: transparent;
+}
+
+.share-btn-whatsapp:hover {
+  background: #25D366;
+  color: white;
+  border-color: #25D366;
+}
+
+.share-btn-facebook:hover {
+  background: #1877F2;
+  color: white;
+  border-color: #1877F2;
+}
+
+.share-btn-twitter:hover {
+  background: #000;
+  color: white;
+  border-color: #000;
+}
+
+.share-btn-copy:hover {
+  background: var(--primary-light);
+  color: white;
+  border-color: var(--primary-light);
+}
+
+.share-btn-copy.copied {
+  background: #10b981;
+  color: white;
+  border-color: #10b981;
+}
+
+/* ==================== Inquiry Form ==================== */
+.detail-inquiry-section {
+  margin-bottom: 20px;
+}
+
+.inquiry-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.inquiry-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.inquiry-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.inquiry-field label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gray-600);
+}
+
+.inquiry-field input,
+.inquiry-field textarea {
+  padding: 8px 12px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  font-size: 13px;
+  color: var(--gray-900);
+  background: var(--gray-50);
+  transition: var(--transition);
+  font-family: inherit;
+  resize: vertical;
+}
+
+.inquiry-field input:focus,
+.inquiry-field textarea:focus {
+  outline: none;
+  border-color: var(--primary-light);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  background: white;
+}
+
+.inquiry-message {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 500;
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.inquiry-message-success {
+  background: #f0fdf4;
+  color: #16a34a;
+}
+
+.inquiry-submit-btn {
+  width: 100%;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 20px !important;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.inquiry-submit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.inquiry-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 /* ==================== Transitions ==================== */
@@ -908,6 +1190,12 @@ onMounted(async () => {
     border-left: none;
     border-top: 1px solid var(--gray-100);
     padding: 24px;
+    max-height: none;
+  }
+
+  .detail-modal {
+    max-width: 100%;
+    max-height: 95vh;
   }
 
   .toolbar-count {

@@ -18,8 +18,8 @@ api.interceptors.response.use(
   err => {
     if (err.response?.status === 401) {
       localStorage.removeItem('token');
-      if (window.location.hash !== '#/admin/login') {
-        window.location.hash = '#/admin/login';
+      if (window.location.pathname !== '/admin/login') {
+        window.location.pathname = '/admin/login';
       }
     }
     return Promise.reject(err.response?.data || err);

@@ -153,9 +153,9 @@ const testResult = ref(null);
 
 onMounted(async () => {
   try {
-    const { data } = await getStorageSettings();
-    if (data.success) {
-      form.value = { ...form.value, ...data.data };
+    const res = await getStorageSettings();
+    if (res.success) {
+      form.value = { ...form.value, ...res.data };
     }
   } catch (e) {
     console.error('Failed to load storage settings:', e);
@@ -165,12 +165,12 @@ onMounted(async () => {
 async function doSave() {
   saving.value = true;
   try {
-    const { data } = await updateStorageSettings(form.value);
-    if (data.success) {
+    const res = await updateStorageSettings(form.value);
+    if (res.success) {
       testResult.value = null;
       alert(t('saveSuccess'));
     } else {
-      alert(data.message || t('error'));
+      alert(res.message || t('error'));
     }
   } catch (e) {
     alert(e.response?.data?.message || t('error'));
@@ -184,8 +184,8 @@ async function doTest() {
   try {
     // 先保存再测试
     await doSave();
-    const { data } = await testStorageConnection();
-    testResult.value = data;
+    const res = await testStorageConnection();
+    testResult.value = res;
   } catch (e) {
     testResult.value = {
       success: false,

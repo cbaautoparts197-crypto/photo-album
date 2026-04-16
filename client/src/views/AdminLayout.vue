@@ -57,6 +57,31 @@
           </span>
           <span v-if="!sidebarCollapsed" class="nav-label">{{ t('storageSettings') }}</span>
         </router-link>
+        <div v-if="!sidebarCollapsed" class="nav-section-label">Business</div>
+        <router-link to="/admin/prices" class="nav-item" :class="{ active: $route.path === '/admin/prices' }">
+          <span class="nav-icon-wrap">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          </span>
+          <span v-if="!sidebarCollapsed" class="nav-label">{{ t('priceManagement') }}</span>
+        </router-link>
+        <router-link to="/admin/videos" class="nav-item" :class="{ active: $route.path === '/admin/videos' }">
+          <span class="nav-icon-wrap">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+          </span>
+          <span v-if="!sidebarCollapsed" class="nav-label">{{ t('videoManagement') }}</span>
+        </router-link>
+        <router-link to="/admin/news" class="nav-item" :class="{ active: $route.path === '/admin/news' }">
+          <span class="nav-icon-wrap">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/></svg>
+          </span>
+          <span v-if="!sidebarCollapsed" class="nav-label">{{ t('newsManagement') }}</span>
+        </router-link>
+        <router-link to="/admin/inquiries" class="nav-item" :class="{ active: $route.path === '/admin/inquiries' }">
+          <span class="nav-icon-wrap">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+          </span>
+          <span v-if="!sidebarCollapsed" class="nav-label">{{ t('inquiryManagement') }}</span>
+        </router-link>
       </nav>
 
       <div class="sidebar-footer">
@@ -127,6 +152,10 @@ const pageTitles = {
   '/admin/upload': 'upload',
   '/admin/company': 'companyInfo',
   '/admin/watermark': 'watermark',
+  '/admin/prices': 'priceManagement',
+  '/admin/inquiries': 'inquiryManagement',
+  '/admin/videos': 'videoManagement',
+  '/admin/news': 'newsManagement',
 };
 
 const currentPageTitle = computed(() => {
@@ -156,6 +185,10 @@ function checkMobile() {
 }
 
 onMounted(() => {
+  if (!localStorage.getItem('lang')) {
+    locale.value = 'zh';
+    localStorage.setItem('lang', 'zh');
+  }
   checkMobile();
   window.addEventListener('resize', checkMobile);
 });

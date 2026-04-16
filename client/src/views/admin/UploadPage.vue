@@ -150,7 +150,7 @@ const uploadProgress = ref({ current: 0, total: 0, currentFile: '' });
 
 function parseFileName(name) {
   let base = name.replace(/\.[^.]+$/, '');
-  base = base.replace(/[_\-\–\—]+/g, ' ');
+  base = base.replace(/[_\–\—]+/g, ' ');
   base = base.trim();
   return base;
 }
@@ -213,36 +213,62 @@ async function startUpload() {
 
   uploading.value = true;
   errors.value = [];
-  uploadProgress.value = { current: 0, total: fileList.value.length, currentFile: '' };
+  const total = fileList.value.length;
+  uploadProgress.value = { current: 0, total, currentFile: '' };
 
-  try {
-    const formData = new FormData();
-    formData.append('category_id', selectedCategoryId.value);
-    fileList.value.forEach(f => {
-      formData.append('files', f.file);
-      formData.append('names', f.customName || f.parsedName);
-    });
+  const BATCH_SIZE = 3;
+  let overallSuccess = 0;
+  let overallErrors = [];
 
-    const res = await uploadImages(formData, (progress) => {
-      uploadProgress.value = progress;
-    });
+  for (let i = 0; i < total; i += BATCH_SIZE) {
+    const batch = fileList.value.slice(i, i + BATCH_SIZE);
 
-    if (res.success) {
-      const failed = res.data.failed || [];
-      if (failed && failed.length > 0) {
-        errors.value = failed.map(f => ({ file: f.filename, message: f.error }));
+    uploadProgress.value.currentFile = batch[0].customName || batch[0].parsedName;
+
+    try {
+      const formData = new FormData();
+      formData.append('category_id', selectedCategoryId.value);
+      batch.forEach(f => {
+        formData.append('files', f.file);
+        formData.append('names', f.customName || f.parsedName);
+      });
+
+      const res = await uploadImages(formData, (progress) => {
+        uploadProgress.value.current = (i) + (progress.current || 0);
+      });
+
+      console.log(`[upload] Batch ${Math.floor(i/BATCH_SIZE)+1} response:`, JSON.stringify(res));
+
+      if (res.success) {
+        const failed = res.data.failed || [];
+        const succeeded = res.data.success || [];
+        console.log(`[upload] Batch succeeded: ${succeeded.length}, failed: ${failed.length}`, failed.length ? JSON.stringify(failed) : '');
+        overallErrors.push(...failed.map(f => ({ file: f.filename, message: f.error })));
+        overallSuccess += succeeded.length;
+      } else {
+        console.log(`[upload] Batch res.success=false:`, res.message);
+        overallErrors.push({ file: batch[0].parsedName, message: res.message });
       }
-      const successCount = fileList.value.length - errors.value.length;
-      alert(`${t('uploadSuccess')}: ${successCount}/${fileList.value.length}`);
-      clearFiles();
-      selectedCategoryId.value = '';
-    } else {
-      errors.value = [{ file: '-', message: res.message }];
+    } catch (e) {
+      const errMsg = e.response?.data?.message || e.message || 'Network Error';
+      const errDetail = e.response?.data?.error || '';
+      console.error(`[upload] Batch ${Math.floor(i/BATCH_SIZE)+1} catch error:`, errMsg, errDetail, e.response?.status, e.response?.data || e);
+      batch.forEach(f => {
+        overallErrors.push({ file: f.parsedName, message: errDetail ? `${errMsg} (${errDetail})` : errMsg });
+      });
     }
-  } catch (e) {
-    errors.value = [{ file: '-', message: e.message || 'Network Error' }];
+
+    uploadProgress.value.current = Math.min(i + BATCH_SIZE, total);
   }
 
+  errors.value = overallErrors;
+  const alertMsg = `${t('uploadSuccess')}: ${overallSuccess}/${total}${overallErrors.length ? `\n${overallErrors.length} failed` : ''}`;
+  console.log('[upload] Final result:', alertMsg, 'errors:', JSON.stringify(overallErrors));
+  alert(alertMsg);
+  if (overallSuccess > 0) {
+    clearFiles();
+    selectedCategoryId.value = '';
+  }
   uploading.value = false;
 }
 

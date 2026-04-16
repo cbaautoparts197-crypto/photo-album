@@ -321,8 +321,8 @@ function hexFromRgba(rgba) {
 async function loadSettings() {
   try {
     const res = await getWatermarkSettings();
-    if (res.data.success) {
-      form.value = res.data.data;
+    if (res.success) {
+      form.value = res.data;
       colorHex.value = hexFromRgba(form.value.fill_color || 'rgba(255,255,255,0.3)');
     }
   } catch (e) {
@@ -347,8 +347,8 @@ async function handleSave() {
       image_url: form.value.image_url,
       mode: form.value.mode,
     });
-    if (res.data.success) {
-      form.value = res.data.data;
+    if (res.success) {
+      form.value = res.data;
       colorHex.value = hexFromRgba(form.value.fill_color || 'rgba(255,255,255,0.3)');
       showToast(t('saveSuccess'), 'success');
     }

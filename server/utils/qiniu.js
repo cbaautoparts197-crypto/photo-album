@@ -2,6 +2,8 @@ const qiniu = require('qiniu');
 
 // 内存缓存
 let _mac = null;
+let _accessKey = '';
+let _secretKey = '';
 let _bucket = '';
 let _domain = '';
 let _region = 'z0';
@@ -9,23 +11,22 @@ let _region = 'z0';
 async function refreshConfig() {
   try {
     const db = require('../db');
+    console.log('[qiniu] refreshConfig: reading from storage_settings...');
     const result = await db.execute('SELECT * FROM storage_settings WHERE id = 1');
     const row = result.rows[0];
     if (row && row.access_key && row.secret_key) {
       _mac = new qiniu.auth.digest.Mac(row.access_key, row.secret_key);
+      _accessKey = row.access_key;
+      _secretKey = row.secret_key;
       _bucket = row.bucket || '';
       _domain = (row.domain || '').replace(/\/+$/, '');
       _region = row.region || 'z0';
+      console.log('[qiniu] refreshConfig: OK, bucket =', _bucket, ', domain =', _domain, ', region =', _region);
     } else {
-      const config = require('../config');
-      if (config.qiniu.accessKey && config.qiniu.secretKey) {
-        _mac = new qiniu.auth.digest.Mac(config.qiniu.accessKey, config.qiniu.secretKey);
-      }
-      _bucket = config.qiniu.bucket || '';
-      _domain = config.qiniu.domain || '';
+      console.log('[qiniu] refreshConfig: no config found');
     }
   } catch (err) {
-    console.warn('  七牛云配置刷新失败:', err.message);
+    console.error('[qiniu] refreshConfig FAILED:', err.message);
   }
 }
 
@@ -54,29 +55,51 @@ function getUploadTokenBatch() {
   return putPolicy.uploadToken(_mac);
 }
 
+// Region → upload URL mapping
+const regionMap = {
+  'z0': 'https://up.qiniup.com',
+  'z1': 'https://up-z1.qiniup.com',
+  'z2': 'https://up-z2.qiniup.com',
+  'na0': 'https://up-na0.qiniup.com',
+  'as0': 'https://up-as0.qiniup.com',
+  'cn-east-2': 'https://up-cn-east-2.qiniup.com',
+  'ap-northeast-1': 'https://up-ap-northeast-1.qiniup.com',
+};
+
 function uploadToQiniu(buffer, key, mimeType) {
+  ensureMac();
+
+  const token = getUploadToken(key);
+  const uploadURL = regionMap[_region] || 'https://up.qiniup.com';
+
+  // Use native fetch to avoid qiniu SDK's internal getRegionsProvider issue
+  const FormData = require('form-data');
+  const form = new FormData();
+  form.append('token', token);
+  form.append('key', key);
+  form.append('file', buffer, {
+    filename: key.split('/').pop(),
+    contentType: mimeType || 'application/octet-stream',
+  });
+
   return new Promise((resolve, reject) => {
-    ensureMac();
-    const token = getUploadToken(key);
+    form.submit(uploadURL, (err, response) => {
+      if (err) return reject(err);
 
-    const regionMap = {
-      'z0': 'https://up.qiniup.com',
-      'z1': 'https://up-z1.qiniup.com',
-      'z2': 'https://up-z2.qiniup.com',
-      'na0': 'https://up-na0.qiniup.com',
-      'as0': 'https://up-as0.qiniup.com',
-    };
-    // 使用缓存的上传 URL
-    const uploadURL = regionMap[_region] || 'https://up.qiniup.com';
-
-    const formUploader = new qiniu.form_up.FormUploader({ uploadURL });
-    const putExtra = new qiniu.form_up.PutExtra();
-    if (mimeType) putExtra.mimeType = mimeType;
-
-    formUploader.put(token, key, buffer, putExtra, (err, body, info) => {
-      if (err) { reject(err); return; }
-      if (info.statusCode === 200) resolve(body);
-      else reject(new Error(`Upload failed: ${info.statusCode} - ${body}`));
+      let data = '';
+      response.on('data', (chunk) => { data += chunk; });
+      response.on('end', () => {
+        if (response.statusCode >= 200 && response.statusCode < 300) {
+          try {
+            resolve(JSON.parse(data));
+          } catch (e) {
+            resolve(data);
+          }
+        } else {
+          reject(new Error(`Upload failed (${response.statusCode}): ${data}`));
+        }
+      });
+      response.on('error', reject);
     });
   });
 }
@@ -87,9 +110,9 @@ function getFileUrl(key) {
 }
 
 function deleteFromQiniu(key) {
+  ensureMac();
+  const bucketManager = new qiniu.rs.BucketManager(_mac, null);
   return new Promise((resolve, reject) => {
-    ensureMac();
-    const bucketManager = new qiniu.rs.BucketManager(_mac, null);
     bucketManager.delete(_bucket, key, (err, respBody, respInfo) => {
       if (err) reject(err);
       else if (respInfo.statusCode === 200) resolve();

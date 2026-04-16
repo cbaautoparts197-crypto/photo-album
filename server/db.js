@@ -40,11 +40,15 @@ async function initDatabase() {
         file_size INTEGER DEFAULT 0,
         mime_type TEXT,
         oe_number TEXT,
+        car_model TEXT,
         remark TEXT,
         sort_order INTEGER DEFAULT 0,
         created_at DATETIME DEFAULT (datetime('now', 'localtime'))
       )
     `);
+
+    // 迁移：确保 car_model 字段存在
+    try { await db.execute(`ALTER TABLE products ADD COLUMN car_model TEXT`); } catch(e) {}
 
     await db.execute(`
       CREATE TABLE IF NOT EXISTS company_info (
@@ -106,6 +110,87 @@ async function initDatabase() {
     `);
 
     await db.execute(`INSERT OR IGNORE INTO storage_settings (id) VALUES (1)`);
+
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS supplier_prices (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        oe_number TEXT NOT NULL,
+        supplier_name TEXT NOT NULL,
+        unit_price REAL DEFAULT 0,
+        currency TEXT DEFAULT 'USD',
+        moq INTEGER DEFAULT 1,
+        lead_time TEXT DEFAULT '',
+        remark TEXT DEFAULT '',
+        created_at DATETIME DEFAULT (datetime('now', 'localtime')),
+        updated_at DATETIME DEFAULT (datetime('now', 'localtime'))
+      )
+    `);
+
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS inquiries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        product_id INTEGER REFERENCES products(id) ON DELETE SET NULL,
+        product_name TEXT DEFAULT '',
+        oe_number TEXT DEFAULT '',
+        category_name TEXT DEFAULT '',
+        customer_name TEXT NOT NULL,
+        customer_email TEXT NOT NULL,
+        customer_phone TEXT DEFAULT '',
+        customer_message TEXT DEFAULT '',
+        status TEXT DEFAULT 'new',
+        admin_reply TEXT DEFAULT '',
+        replied_at DATETIME,
+        created_at DATETIME DEFAULT (datetime('now', 'localtime'))
+      )
+    `);
+
+    // 创建索引加速查询
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_supplier_prices_oe ON supplier_prices(oe_number)`);
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_inquiries_status ON inquiries(status)`);
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_inquiries_created ON inquiries(created_at)`);
+
+    // ==================== videos 表 ====================
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS videos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL DEFAULT '',
+        youtube_url TEXT NOT NULL DEFAULT '',
+        youtube_id TEXT DEFAULT '',
+        thumbnail_url TEXT DEFAULT '',
+        description TEXT DEFAULT '',
+        sort_order INTEGER DEFAULT 0,
+        is_published INTEGER DEFAULT 1,
+        created_at DATETIME DEFAULT (datetime('now', 'localtime')),
+        updated_at DATETIME DEFAULT (datetime('now', 'localtime'))
+      )
+    `);
+
+    // ==================== news 表 ====================
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS news (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL DEFAULT '',
+        title_zh TEXT DEFAULT '',
+        title_en TEXT DEFAULT '',
+        title_es TEXT DEFAULT '',
+        content TEXT DEFAULT '',
+        content_zh TEXT DEFAULT '',
+        content_en TEXT DEFAULT '',
+        content_es TEXT DEFAULT '',
+        cover_image TEXT DEFAULT '',
+        summary TEXT DEFAULT '',
+        summary_zh TEXT DEFAULT '',
+        summary_en TEXT DEFAULT '',
+        summary_es TEXT DEFAULT '',
+        sort_order INTEGER DEFAULT 0,
+        is_published INTEGER DEFAULT 1,
+        created_at DATETIME DEFAULT (datetime('now', 'localtime')),
+        updated_at DATETIME DEFAULT (datetime('now', 'localtime'))
+      )
+    `);
+
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_videos_published ON videos(is_published, sort_order)`);
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_news_published ON news(is_published, sort_order)`);
 
     console.log('  Database tables initialized successfully');
   } catch (err) {

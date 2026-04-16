@@ -19,9 +19,9 @@ function parseFilename(filename) {
 
   if (!name || name.trim() === '') return filename;
 
-  // 替换常见分隔符为空格
+  // 替换常见分隔符为空格（保留连字符 -）
   let parsed = name
-    .replace(/[_-]+/g, ' ')
+    .replace(/[_]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 

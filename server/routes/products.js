@@ -2,7 +2,8 @@ const express = require('express');
 const multer = require('multer');
 const router = express.Router();
 const db = require('../db');
-const { uploadToQiniu, getFileUrl } = require('../utils/qiniu');
+const { uploadToQiniu, getFileUrl, refreshConfig } = require('../utils/qiniu');
+
 const { parseFilename, generateQiniuKey } = require('../utils/helpers');
 const { apply } = require('../utils/watermark');
 
@@ -14,6 +15,28 @@ const upload = multer({
     if (allowed.test(file.mimetype)) cb(null, true);
     else cb(new Error(`不支持的文件类型: ${file.mimetype}`));
   },
+});
+
+// GET /api/products/qiniu-status - 检查七牛云配置状态（调试用）
+router.get('/qiniu-status', async (req, res) => {
+  try {
+    await refreshConfig();
+    const db = require('../db');
+    const result = await db.execute('SELECT access_key, bucket, domain, region FROM storage_settings WHERE id = 1');
+    const row = result.rows[0];
+    res.json({
+      success: true,
+      data: {
+        has_access_key: !!row?.access_key,
+        bucket: row?.bucket || '',
+        domain: row?.domain || '',
+        region: row?.region || '',
+        settings_exist: !!row,
+      }
+    });
+  } catch (err) {
+    res.json({ success: false, message: err.message });
+  }
 });
 
 // GET /api/products - 产品列表
@@ -73,6 +96,10 @@ router.get('/', async (req, res) => {
 // POST /api/products/upload - 批量上传
 router.post('/upload', upload.array('files', 250), async (req, res) => {
   try {
+    // 先刷新七牛云配置（确保从数据库读取最新设置）
+    await refreshConfig();
+    console.log('[upload] refreshConfig done');
+
     const categoryId = req.body.category_id ? Number(req.body.category_id) : null;
     const files = req.files;
     const customNames = req.body.names ? (Array.isArray(req.body.names) ? req.body.names : [req.body.names]) : [];
@@ -115,6 +142,7 @@ router.post('/upload', upload.array('files', 250), async (req, res) => {
           success: true,
         });
       } catch (err) {
+        console.error(`[upload] File "${file.originalname}" failed:`, err.message, err.stack);
         errors.push({ filename: file.originalname, error: err.message });
       }
     }
@@ -132,17 +160,42 @@ router.post('/upload', upload.array('files', 250), async (req, res) => {
 // PUT /api/products/:id - 更新产品
 router.put('/:id', async (req, res) => {
   try {
-    const { name, category_id, oe_number, remark } = req.body;
+    const { name, category_id, oe_number, car_model, remark } = req.body;
     const id = req.params.id;
-    await db.execute(
-      `UPDATE products SET
-        name = COALESCE(?, name),
-        category_id = COALESCE(?, category_id),
-        oe_number = COALESCE(?, oe_number),
-        remark = COALESCE(?, remark)
-      WHERE id = ?`,
-      [name, category_id !== undefined ? category_id : null, oe_number, remark, id]
-    );
+    const sets = [];
+    const params = [];
+
+    if (name !== undefined && name !== null && name !== '') {
+      sets.push('name = ?');
+      params.push(String(name));
+    }
+    if (category_id !== undefined && category_id !== null && category_id !== '') {
+      sets.push('category_id = ?');
+      params.push(Number(category_id));
+    } else if (category_id === null || category_id === '') {
+      sets.push('category_id = NULL');
+    }
+    if (oe_number !== undefined && oe_number !== null && oe_number !== '') {
+      sets.push('oe_number = ?');
+      params.push(String(oe_number));
+    } else if (oe_number === null || oe_number === '') {
+      sets.push('oe_number = NULL');
+    }
+    if (remark !== undefined && remark !== null) {
+      sets.push('remark = ?');
+      params.push(String(remark));
+    }
+    if (car_model !== undefined && car_model !== null) {
+      sets.push('car_model = ?');
+      params.push(String(car_model));
+    }
+
+    if (sets.length === 0) {
+      return res.status(400).json({ success: false, message: '没有需要更新的字段' });
+    }
+
+    params.push(Number(id));
+    await db.execute(`UPDATE products SET ${sets.join(', ')} WHERE id = ?`, params);
     res.json({ success: true, message: '更新成功' });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -212,11 +265,28 @@ router.put('/batch-move-category', async (req, res) => {
 });
 
 async function getAllChildCategoryIds(parentId) {
+  // 一次性加载所有分类，内存构建树，避免 N+1 递归查询
+  const result = await db.execute('SELECT id, parent_id FROM categories');
+  const rows = result.rows;
+  const childrenMap = new Map();
+  for (const row of rows) {
+    if (row.parent_id != null) {
+      const list = childrenMap.get(row.parent_id) || [];
+      list.push(row.id);
+      childrenMap.set(row.parent_id, list);
+    }
+  }
   const ids = [];
-  const result = await db.execute('SELECT id FROM categories WHERE parent_id = ?', [parentId]);
-  for (const child of result.rows) {
-    ids.push(child.id);
-    ids.push(...await getAllChildCategoryIds(child.id));
+  const stack = [parentId];
+  while (stack.length > 0) {
+    const cur = stack.pop();
+    const children = childrenMap.get(cur);
+    if (children) {
+      for (const cid of children) {
+        ids.push(cid);
+        stack.push(cid);
+      }
+    }
   }
   return ids;
 }

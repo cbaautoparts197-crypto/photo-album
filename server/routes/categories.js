@@ -29,10 +29,12 @@ router.get('/flat', async (req, res) => {
       FROM categories ORDER BY sort_order ASC, id ASC
     `);
     const rows = result.rows;
+    // 预建 id→row Map，一次遍历计算 label，避免 O(n²)
+    const rowMap = new Map(rows.map(r => [r.id, r]));
     const withLabels = rows.map(row => ({
       ...row,
       name: row[nameField],
-      label: buildCategoryLabel(row, rows, nameField),
+      label: buildCategoryLabelFast(row, rowMap, nameField),
     }));
     res.json({ success: true, data: withLabels });
   } catch (err) {
@@ -64,16 +66,38 @@ router.put('/:id', async (req, res) => {
   try {
     const { name_zh, name_en, name_es, parent_id, sort_order } = req.body;
     const id = req.params.id;
-    await db.execute(
-      `UPDATE categories SET
-        name_zh = COALESCE(?, name_zh),
-        name_en = COALESCE(?, name_en),
-        name_es = COALESCE(?, name_es),
-        parent_id = COALESCE(?, parent_id),
-        sort_order = COALESCE(?, sort_order)
-      WHERE id = ?`,
-      [name_zh, name_en, name_es, parent_id, sort_order, id]
-    );
+    const sets = [];
+    const params = [];
+
+    if (name_zh !== undefined && name_zh !== null && name_zh !== '') {
+      sets.push('name_zh = ?');
+      params.push(String(name_zh));
+    }
+    if (name_en !== undefined && name_en !== null && name_en !== '') {
+      sets.push('name_en = ?');
+      params.push(String(name_en));
+    }
+    if (name_es !== undefined && name_es !== null && name_es !== '') {
+      sets.push('name_es = ?');
+      params.push(String(name_es));
+    }
+    if (parent_id !== undefined && parent_id !== null && parent_id !== '') {
+      sets.push('parent_id = ?');
+      params.push(Number(parent_id));
+    } else if (parent_id === null || parent_id === '') {
+      sets.push('parent_id = NULL');
+    }
+    if (sort_order !== undefined && sort_order !== null && sort_order !== '') {
+      sets.push('sort_order = ?');
+      params.push(Number(sort_order));
+    }
+
+    if (sets.length === 0) {
+      return res.status(400).json({ success: false, message: '没有需要更新的字段' });
+    }
+
+    params.push(Number(id));
+    await db.execute(`UPDATE categories SET ${sets.join(', ')} WHERE id = ?`, params);
     res.json({ success: true, message: '分类更新成功' });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -112,11 +136,17 @@ function buildTree(rows, parentId, nameField) {
 }
 
 function buildCategoryLabel(row, allRows, nameField) {
+  // 兼容旧调用（理论上不会走到，但保留）
+  const rowMap = new Map(allRows.map(r => [r.id, r]));
+  return buildCategoryLabelFast(row, rowMap, nameField);
+}
+
+function buildCategoryLabelFast(row, rowMap, nameField) {
   const parts = [];
   let current = row;
   while (current) {
     parts.unshift(current[nameField]);
-    current = current.parent_id ? allRows.find(r => r.id === current.parent_id) : null;
+    current = current.parent_id ? rowMap.get(current.parent_id) : null;
   }
   return parts.join(' / ');
 }

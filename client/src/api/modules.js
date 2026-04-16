@@ -35,3 +35,38 @@ export const testStorageConnection = () => api.post('/storage/test');
 
 // ==================== 认证 ====================
 export const login = (password) => api.post('/auth/login', { password });
+
+// ==================== 供应商价格 ====================
+export const getPrices = (params) => api.get('/prices', { params });
+export const getPricesByOe = (oe) => api.get(`/prices/by-oe/${encodeURIComponent(oe)}`);
+export const getPricesByProductName = (productName) => api.get('/prices/by-product-name', { params: { productName } });
+export const createPrice = (data) => api.post('/prices', data);
+export const updatePrice = (id, data) => api.put(`/prices/${id}`, data);
+export const deletePrice = (id) => api.delete(`/prices/${id}`);
+export const batchDeletePrices = (ids) => api.post('/prices/batch-delete', { ids });
+export const importPrices = (formData) =>
+  api.post('/prices/import', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+
+// ==================== 询盘管理 ====================
+export const submitInquiry = (data) => api.post('/inquiries', data);
+export const getInquiries = (params) => api.get('/inquiries', { params });
+export const updateInquiryStatus = (id, status) => api.put(`/inquiries/${id}/status`, { status });
+export const replyInquiry = (id, data) => api.put(`/inquiries/${id}/reply`, data);
+export const deleteInquiry = (id) => api.delete(`/inquiries/${id}`);
+
+// ==================== 视频管理 ====================
+export const getVideos = (params) => api.get('/videos', { params });
+export const createVideo = (data) => api.post('/videos', data);
+export const updateVideo = (id, data) => api.put(`/videos/${id}`, data);
+export const deleteVideo = (id) => api.delete(`/videos/${id}`);
+export const batchDeleteVideos = (ids) => api.post('/videos/batch-delete', { ids });
+
+// ==================== 新闻管理 ====================
+export const getNews = (params) => api.get('/news', { params });
+export const getNewsById = (id) => api.get(`/news/${id}`);
+export const createNews = (data) => api.post('/news', data);
+export const updateNews = (id, data) => api.put(`/news/${id}`, data);
+export const deleteNews = (id) => api.delete(`/news/${id}`);
+export const batchDeleteNews = (ids) => api.post('/news/batch-delete', { ids });

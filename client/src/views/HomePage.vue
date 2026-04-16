@@ -76,29 +76,66 @@
       </div>
     </section>
 
-    <!-- Categories -->
-    <section v-if="topCategories.length > 0" class="categories-section">
+    <!-- Video Center -->
+    <section v-if="featuredVideos.length > 0" class="video-section">
       <div class="container">
         <div class="section-header">
-          <span class="section-tag">{{ t('browse') }}</span>
-          <h2 class="section-title">{{ t('categories') }}</h2>
-          <p class="section-desc">{{ t('categoriesDesc') }}</p>
+          <span class="section-tag">{{ t('videoCenter') }}</span>
+          <h2 class="section-title">{{ t('videoCenter') }}</h2>
+          <p class="section-desc">{{ t('videoCenterDesc') }}</p>
         </div>
-        <div class="categories-grid">
+        <div class="video-grid">
           <div
-            v-for="cat in topCategories"
-            :key="cat.id"
-            class="category-card"
-            @click="goProducts(cat.id)"
+            v-for="video in featuredVideos"
+            :key="video.id"
+            class="video-card"
+            @click="openVideo(video)"
           >
-            <div class="category-card-inner">
-              <div class="category-icon-wrap">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+            <div class="video-thumb-wrap">
+              <img v-if="video.thumbnail_url" :src="video.thumbnail_url" :alt="video.title" loading="lazy" />
+              <div v-else class="video-no-thumb">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
               </div>
-              <h3>{{ cat.name }}</h3>
-              <span class="category-count">{{ cat.product_count || 0 }} {{ t('products') }}</span>
+              <div class="video-play-btn">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="white"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              </div>
             </div>
-            <svg class="category-arrow" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            <div class="video-info">
+              <h3 class="video-title">{{ video.title }}</h3>
+              <p v-if="video.description" class="video-desc">{{ video.description }}</p>
+            </div>
+          </div>
+        </div>
+        <div class="featured-more">
+          <router-link to="/videos" class="btn btn-view-all">
+            {{ t('viewMore') }}
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          </router-link>
+        </div>
+      </div>
+    </section>
+
+    <!-- News -->
+    <section v-if="latestNews.length > 0" class="news-section">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-tag">{{ t('news') }}</span>
+          <h2 class="section-title">{{ t('news') }}</h2>
+        </div>
+        <div class="news-list">
+          <div
+            v-for="item in latestNews"
+            :key="item.id"
+            class="news-card"
+          >
+            <div v-if="item.cover_image" class="news-cover">
+              <img :src="item.cover_image" :alt="item.title" loading="lazy" />
+            </div>
+            <div class="news-content">
+              <h3 class="news-title">{{ getLocalizedTitle(item) }}</h3>
+              <p class="news-summary">{{ getLocalizedSummary(item) }}</p>
+              <span class="news-date">{{ formatDate(item.created_at) }}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -117,7 +154,7 @@
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
               {{ company.email }}
             </a>
-            <a v-if="company.whatsapp" :href="'https://wa.me/' + company.whatsapp.replace(/[^0-9]/g, '')" target="_blank" class="btn btn-cta-whatsapp">
+            <a href="https://wa.me/8618030192592" target="_blank" class="btn btn-cta-whatsapp">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
               WhatsApp
             </a>
@@ -136,13 +173,15 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-import { getCompanyInfo, getCategories } from '../api/modules';
+import { getCompanyInfo, getCategories, getVideos, getNews } from '../api/modules';
 
 const { t, locale } = useI18n();
 const router = useRouter();
 
 const company = ref({});
 const topCategories = ref([]);
+const featuredVideos = ref([]);
+const latestNews = ref([]);
 
 const heroTitle = computed(() => {
   const m = { zh: 'company_name_zh', en: 'company_name_en', es: 'company_name_es' };
@@ -158,11 +197,38 @@ function goProducts(categoryId) {
   router.push({ path: '/products', query: { category: categoryId } });
 }
 
+function openVideo(video) {
+  if (video.youtube_url) window.open(video.youtube_url, '_blank');
+}
+
+function getLocalizedTitle(item) {
+  const map = { zh: 'title_zh', en: 'title', es: 'title_es' };
+  return item[map[locale.value]] || item.title;
+}
+
+function getLocalizedSummary(item) {
+  const map = { zh: 'summary_zh', en: 'summary', es: 'summary_es' };
+  return item[map[locale.value]] || item.summary;
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr.replace(' ', 'T'));
+  return d.toLocaleDateString(locale.value === 'zh' ? 'zh-CN' : locale.value === 'es' ? 'es-ES' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
 onMounted(async () => {
   try {
-    const [companyRes, catRes] = await Promise.all([getCompanyInfo(), getCategories()]);
+    const [companyRes, catRes, videoRes, newsRes] = await Promise.all([
+      getCompanyInfo(),
+      getCategories(),
+      getVideos({ published: 1, limit: 6 }),
+      getNews({ published: 1, limit: 5 }),
+    ]);
     if (companyRes.success) company.value = companyRes.data || {};
     if (catRes.success) topCategories.value = catRes.data.slice(0, 8);
+    if (videoRes.success) featuredVideos.value = videoRes.data || [];
+    if (newsRes.success) latestNews.value = newsRes.data || [];
   } catch (e) {}
 });
 </script>
@@ -475,108 +541,203 @@ onMounted(async () => {
   line-height: 1.7;
 }
 
-/* ==================== Categories ==================== */
-.categories-section {
+/* ==================== Video Center ==================== */
+.video-section {
+  padding: 80px 0;
+}
+
+.video-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+
+.video-card {
+  background: white;
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  border: 1px solid var(--border-light);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.video-card:hover {
+  transform: translateY(-6px);
+  box-shadow: var(--shadow-xl);
+  border-color: transparent;
+}
+
+.video-thumb-wrap {
+  position: relative;
+  aspect-ratio: 16/9;
+  overflow: hidden;
+  background: #0f172a;
+}
+
+.video-thumb-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.4s ease;
+}
+
+.video-card:hover .video-thumb-wrap img {
+  transform: scale(1.05);
+}
+
+.video-play-btn {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: rgba(255, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  transition: var(--transition);
+}
+
+.video-play-btn svg {
+  margin-left: 3px;
+}
+
+.video-card:hover .video-play-btn {
+  background: rgba(255, 0, 0, 1);
+  transform: translate(-50%, -50%) scale(1.1);
+}
+
+.video-no-thumb {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255,255,255,0.3);
+}
+
+.video-info {
+  padding: 16px;
+}
+
+.video-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--gray-800);
+  margin-bottom: 4px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.video-desc {
+  font-size: 13px;
+  color: var(--gray-500);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ==================== News ==================== */
+.news-section {
   padding: 80px 0;
   background: white;
 }
 
-.categories-grid {
+.news-list {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
   gap: 20px;
+  max-width: 900px;
+  margin: 0 auto;
 }
 
-.category-card {
-  background: var(--gray-50);
+.news-card {
+  display: flex;
+  gap: 20px;
+  padding: 20px;
   border: 1px solid var(--border-light);
   border-radius: var(--radius-lg);
-  padding: 24px;
-  cursor: pointer;
   transition: var(--transition);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  position: relative;
+  background: var(--gray-50);
+}
+
+.news-card:hover {
+  border-color: var(--primary-light);
+  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.08);
+  transform: translateY(-2px);
+}
+
+.news-cover {
+  flex-shrink: 0;
+  width: 160px;
+  height: 100px;
+  border-radius: var(--radius);
   overflow: hidden;
 }
 
-.category-card::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, var(--primary-light), var(--primary-700));
-  opacity: 0;
-  transition: var(--transition);
-  border-radius: var(--radius-lg);
+.news-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
-.category-card:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--shadow-lg);
-  border-color: transparent;
+.news-content {
+  flex: 1;
+  min-width: 0;
 }
 
-.category-card:hover::after {
-  opacity: 1;
-}
-
-.category-card:hover .category-card-inner,
-.category-card:hover .category-arrow,
-.category-card:hover .category-count {
-  position: relative;
-  z-index: 1;
-  color: white;
-}
-
-.category-card:hover .category-icon-wrap {
-  background: rgba(255, 255, 255, 0.2) !important;
-  color: white;
-}
-
-.category-card-inner {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  transition: var(--transition-fast);
-}
-
-.category-icon-wrap {
-  width: 44px;
-  height: 44px;
-  border-radius: var(--radius);
-  background: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--primary-light);
-  box-shadow: var(--shadow-sm);
-  transition: var(--transition-fast);
-}
-
-.category-card h3 {
-  font-size: 15px;
+.news-title {
+  font-size: 16px;
   font-weight: 700;
-  color: var(--gray-800);
+  color: var(--gray-900);
+  margin-bottom: 6px;
 }
 
-.category-count {
-  font-size: 12px;
+.news-summary {
+  font-size: 14px;
   color: var(--gray-500);
-  font-weight: 600;
+  line-height: 1.6;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-bottom: 8px;
 }
 
-.category-arrow {
-  flex-shrink: 0;
+.news-date {
+  font-size: 12px;
   color: var(--gray-400);
-  transition: var(--transition-fast);
-  position: relative;
-  z-index: 1;
+  font-weight: 500;
 }
 
-.category-card:hover .category-arrow {
-  transform: translateX(4px);
+.featured-more {
+  text-align: center;
+  margin-top: 40px;
+}
+
+.btn-view-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 28px;
+  background: var(--primary-light);
   color: white;
+  border-radius: var(--radius-lg);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: var(--transition);
+}
+
+.btn-view-all:hover {
+  background: var(--primary-700);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.3);
 }
 
 /* ==================== CTA ==================== */
@@ -701,7 +862,8 @@ onMounted(async () => {
   }
 
   .features-section,
-  .categories-section,
+  .video-section,
+  .news-section,
   .cta-section {
     padding: 56px 0;
   }
@@ -713,6 +875,24 @@ onMounted(async () => {
   .features-grid {
     grid-template-columns: 1fr;
     gap: 16px;
+  }
+
+  .featured-section {
+    padding: 56px 0;
+  }
+
+  .video-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+
+  .news-card {
+    flex-direction: column;
+  }
+
+  .news-cover {
+    width: 100%;
+    height: 160px;
   }
 
   .feature-card {
@@ -733,10 +913,6 @@ onMounted(async () => {
   .categories-grid {
     grid-template-columns: repeat(2, 1fr);
     gap: 12px;
-  }
-
-  .category-card {
-    padding: 16px;
   }
 
   .cta-card {
@@ -768,7 +944,11 @@ onMounted(async () => {
     font-size: 28px;
   }
 
-  .categories-grid {
+  .featured-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .video-grid {
     grid-template-columns: 1fr;
   }
 }

@@ -11,6 +11,37 @@
       </button>
     </div>
 
+    <!-- Stats cards -->
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        </div>
+        <div class="stat-info">
+          <div class="stat-value">{{ flatCategories.length }}</div>
+          <div class="stat-label">总分类数</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon stat-icon-green">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        </div>
+        <div class="stat-info">
+          <div class="stat-value">{{ categories.length }}</div>
+          <div class="stat-label">顶级分类</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon stat-icon-amber">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+        </div>
+        <div class="stat-info">
+          <div class="stat-value">{{ flatCategories.reduce((s, c) => s + (c.product_count || 0), 0) }}</div>
+          <div class="stat-label">产品总数</div>
+        </div>
+      </div>
+    </div>
+
     <div class="card">
       <div class="card-body">
         <div v-if="categories.length === 0" class="empty-state">
@@ -19,19 +50,21 @@
         </div>
         <div v-else class="category-tree">
           <template v-for="cat in categories" :key="cat.id">
-            <div class="cat-item" :style="{ paddingLeft: '12px' }">
+            <div class="cat-item" :style="{ paddingLeft: '16px' }">
               <span class="cat-toggle" @click="cat._expanded = !cat._expanded">
                 <svg v-if="cat.children && cat.children.length > 0" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :style="{ transform: cat._expanded ? 'rotate(90deg)' : 'rotate(0)', transition: 'var(--transition)' }"><polyline points="9 18 15 12 9 6"/></svg>
-                <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                <span v-else class="cat-dot"></span>
               </span>
-              <span class="cat-name">{{ cat.name }}</span>
-              <span class="cat-slug">{{ cat.slug }}</span>
-              <span class="badge">{{ cat.product_count || 0 }}</span>
+              <div class="cat-info">
+                <span class="cat-name">{{ cat.name }}</span>
+                <span v-if="cat.name_en && cat.name_en !== cat.name" class="cat-name-en">{{ cat.name_en }}</span>
+              </div>
+              <span class="cat-count">{{ cat.product_count || 0 }} 件</span>
               <div class="cat-actions">
-                <button class="cat-action-btn edit" @click="openModal(cat)" title="Edit">
+                <button class="cat-btn edit" @click="openModal(cat)">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                 </button>
-                <button class="cat-action-btn delete" @click="handleDelete(cat)" title="Delete">
+                <button class="cat-btn delete" @click="handleDelete(cat)">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                 </button>
               </div>
@@ -111,22 +144,26 @@ const CategoryNode = defineComponent({
       return children.map(child =>
         h('div', { key: child.id }, [
           h('div', {
-            class: 'cat-item',
-            style: { paddingLeft: (depth * 24 + 12) + 'px' },
+            class: 'cat-item cat-child',
+            style: { paddingLeft: (depth * 20 + 16) + 'px' },
           }, [
             h('span', {
               class: 'cat-toggle',
               onClick: () => { child._expanded = !child._expanded; },
             }, child.children && child.children.length
               ? h('svg', { width: '14', height: '14', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2', style: { transform: child._expanded ? 'rotate(90deg)' : 'rotate(0)', transition: 'var(--transition)' } }, [h('polyline', { points: '9 18 15 12 9 6' })])
-              : h('svg', { width: '14', height: '14', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2' }, [h('line', { x1: '5', y1: '12', x2: '19', y2: '12' })])
+              : h('span', { class: 'cat-dot' })
             ),
-            h('span', { class: 'cat-name' }, child.name),
-            h('span', { class: 'cat-slug' }, child.slug),
-            h('span', { class: 'badge' }, child.product_count || 0),
+            h('div', { class: 'cat-info' }, [
+              h('span', { class: 'cat-name' }, child.name),
+              child.name_en && child.name_en !== child.name
+                ? h('span', { class: 'cat-name-en' }, child.name_en)
+                : null,
+            ]),
+            h('span', { class: 'cat-count' }, `${child.product_count || 0} 件`),
             h('div', { class: 'cat-actions' }, [
-              h('button', { class: 'cat-action-btn edit', onClick: () => emit('edit', child), title: 'Edit' }, [h('svg', { width: '14', height: '14', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2' }, [h('path', { d: 'M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7' }), h('path', { d: 'M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z' })])]),
-              h('button', { class: 'cat-action-btn delete', onClick: () => emit('delete', child), title: 'Delete' }, [h('svg', { width: '14', height: '14', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2' }, [h('polyline', { points: '3 6 5 6 21 6' }), h('path', { d: 'M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2' })])]),
+              h('button', { class: 'cat-btn edit', onClick: () => emit('edit', child) }, [h('svg', { width: '14', height: '14', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2' }, [h('path', { d: 'M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7' }), h('path', { d: 'M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z' })])]),
+              h('button', { class: 'cat-btn delete', onClick: () => emit('delete', child) }, [h('svg', { width: '14', height: '14', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2' }, [h('polyline', { points: '3 6 5 6 21 6' }), h('path', { d: 'M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2' })])]),
             ]),
           ]),
           child.children && child.children.length && child._expanded !== false
@@ -218,87 +255,167 @@ onMounted(loadData);
   color: var(--gray-400);
 }
 
+/* Stats Row */
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.stat-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 20px;
+  background: white;
+  border-radius: 12px;
+  border: 1px solid var(--gray-100);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+}
+
+.stat-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #eff6ff, #dbeafe);
+  color: #3b82f6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.stat-icon-green {
+  background: linear-gradient(135deg, #ecfdf5, #d1fae5);
+  color: #10b981;
+}
+
+.stat-icon-amber {
+  background: linear-gradient(135deg, #fffbeb, #fef3c7);
+  color: #f59e0b;
+}
+
+.stat-value {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--gray-900);
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: var(--gray-400);
+  font-weight: 500;
+}
+
+/* Category Tree */
 .cat-item {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 14px;
-  border-bottom: 1px solid var(--gray-100);
-  transition: var(--transition);
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--gray-50);
+  transition: background 0.15s ease;
+}
+
+.cat-item:last-child {
+  border-bottom: none;
 }
 
 .cat-item:hover {
-  background: var(--gray-50);
+  background: #f8fafc;
+}
+
+.cat-child {
+  background: white;
 }
 
 .cat-toggle {
   width: 20px;
   flex-shrink: 0;
   cursor: pointer;
-  color: var(--gray-400);
+  color: var(--gray-300);
   display: flex;
   align-items: center;
   justify-content: center;
   user-select: none;
 }
 
-.cat-name {
+.cat-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--gray-200);
+}
+
+.cat-info {
   flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.cat-name {
   font-size: 14px;
   font-weight: 600;
   color: var(--gray-800);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.cat-slug {
+.cat-name-en {
   font-size: 12px;
   color: var(--gray-400);
-  background: var(--gray-100);
-  padding: 2px 8px;
-  border-radius: var(--radius-full);
+  font-weight: 400;
+  white-space: nowrap;
 }
 
-.badge {
-  font-size: 11px;
-  font-weight: 600;
-  background: var(--primary-50);
-  color: var(--primary-light);
-  padding: 2px 8px;
-  border-radius: var(--radius-full);
+.cat-count {
+  font-size: 12px;
+  color: var(--gray-400);
+  font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .cat-actions {
   display: flex;
   gap: 4px;
   opacity: 0;
-  transition: var(--transition);
+  transition: opacity 0.15s ease;
+  flex-shrink: 0;
 }
 
 .cat-item:hover .cat-actions {
   opacity: 1;
 }
 
-.cat-action-btn {
-  width: 30px;
-  height: 30px;
+.cat-btn {
+  width: 32px;
+  height: 32px;
   border: none;
-  border-radius: var(--radius);
+  border-radius: 8px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: var(--transition);
+  transition: all 0.15s ease;
   background: transparent;
-  color: var(--gray-400);
+  color: var(--gray-300);
 }
 
-.cat-action-btn.edit:hover {
+.cat-btn.edit:hover {
   background: #eff6ff;
-  color: var(--primary-light);
+  color: #3b82f6;
 }
 
-.cat-action-btn.delete:hover {
+.cat-btn.delete:hover {
   background: #fef2f2;
-  color: #dc2626;
+  color: #ef4444;
 }
 
 .required {
@@ -324,5 +441,11 @@ onMounted(loadData);
 .modal-enter-from .modal,
 .modal-leave-to .modal {
   transform: scale(0.95) translateY(10px);
+}
+
+@media (max-width: 768px) {
+  .stats-row {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

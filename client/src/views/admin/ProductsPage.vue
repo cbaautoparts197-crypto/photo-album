@@ -41,10 +41,12 @@
               <th style="width:60px;">ID</th>
               <th style="width:80px;">{{ t('image') }}</th>
               <th>{{ t('productName') }}</th>
+              <th style="width:100px;">{{ t('price') }}</th>
+              <th>{{ t('carModel') }}</th>
               <th>{{ t('categories') }}</th>
+              <th style="width:100px;">{{ t('actions') }}</th>
               <th>{{ t('fileSize') }}</th>
               <th style="width:140px;">{{ t('uploadTime') }}</th>
-              <th style="width:100px;">{{ t('actions') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -65,11 +67,18 @@
                 </div>
               </td>
               <td>
+                <button class="price-query-btn" @click="openPriceQuery(p)">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                  <span>{{ t('queryPrice') }}</span>
+                </button>
+              </td>
+              <td>
+                <span class="car-model-cell">{{ p.car_model || '—' }}</span>
+              </td>
+              <td>
                 <span v-if="p.category_name_zh" class="cat-badge">{{ p.category_name_zh }}</span>
                 <span v-else class="cell-empty">—</span>
               </td>
-              <td class="cell-muted">{{ formatSize(p.file_size) }}</td>
-              <td class="cell-muted">{{ formatDate(p.created_at) }}</td>
               <td>
                 <div class="row-actions">
                   <button class="action-btn edit" @click="openEdit(p)" title="Edit">
@@ -80,6 +89,8 @@
                   </button>
                 </div>
               </td>
+              <td class="cell-muted">{{ formatSize(p.file_size) }}</td>
+              <td class="cell-muted">{{ formatDate(p.created_at) }}</td>
             </tr>
           </tbody>
         </table>
@@ -128,7 +139,7 @@
                 </select>
               </div>
               <div class="form-group">
-                <label class="form-label">备注</label>
+                <label class="form-label">{{ t('remark') || '备注' }}</label>
                 <textarea v-model="editProduct.remark" class="form-textarea" rows="3"></textarea>
               </div>
             </div>
@@ -140,13 +151,73 @@
         </div>
       </Transition>
     </Teleport>
+
+    <!-- 价格查询弹窗 -->
+    <Teleport to="body">
+      <Transition name="modal">
+        <div v-if="showPriceModal" class="modal-overlay" @click.self="showPriceModal = false">
+          <div class="price-modal">
+            <div class="modal-header">
+              <h3>{{ t('queryPriceTitle') }}</h3>
+              <div class="price-modal-oe" v-if="priceProduct">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <span class="price-modal-name">{{ priceProduct.name }}</span>
+              </div>
+              <button class="modal-close" @click="showPriceModal = false">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div class="modal-body price-modal-body">
+              <!-- 加载中 -->
+              <div v-if="priceLoading" class="price-loading">
+                <div class="loading-spinner"></div>
+                <span>{{ t('queryPriceLoading') }}</span>
+              </div>
+              <!-- 无结果 -->
+              <div v-else-if="priceList.length === 0" class="price-empty">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                <p>{{ t('queryPriceNoResult') }}</p>
+              </div>
+              <!-- 价格列表 -->
+              <div v-else>
+                <p class="price-count">{{ t('queryPriceResultCount').replace('{n}', priceList.length) }}</p>
+                <div class="price-table-wrap">
+                  <table class="data-table price-table">
+                    <thead>
+                      <tr>
+                        <th>{{ t('supplierName') }}</th>
+                        <th>{{ t('unitPrice') }}</th>
+                        <th>{{ t('currency') }}</th>
+                        <th>{{ t('moq') }}</th>
+                        <th>{{ t('leadTime') }}</th>
+                        <th>{{ t('remark') || '备注' }}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="item in priceList" :key="item.id">
+                        <td class="td-supplier">{{ item.supplier_name }}</td>
+                        <td class="td-price-val">{{ item.unit_price }}</td>
+                        <td>{{ item.currency }}</td>
+                        <td>{{ item.moq }}</td>
+                        <td>{{ item.lead_time || '—' }}</td>
+                        <td class="td-remark">{{ item.remark || '—' }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { getProducts, deleteProduct, updateProduct, getCategoriesFlat } from '../../api/modules';
+import { getProducts, deleteProduct, updateProduct, getCategoriesFlat, getPricesByProductName } from '../../api/modules';
 
 const { t } = useI18n();
 
@@ -169,6 +240,12 @@ const visiblePages = computed(() => {
 const filters = ref({ categoryId: '', keyword: '' });
 const showEdit = ref(false);
 const editProduct = ref({});
+
+// 价格查询
+const showPriceModal = ref(false);
+const priceProduct = ref(null);
+const priceList = ref([]);
+const priceLoading = ref(false);
 
 function formatSize(bytes) {
   if (!bytes) return '—';
@@ -214,6 +291,24 @@ async function handleSaveEdit() {
     showEdit.value = false;
     await loadProducts();
   } catch (e) {}
+}
+
+async function openPriceQuery(p) {
+  if (!p.name) {
+    alert(t('queryPriceNoOe'));
+    return;
+  }
+  priceProduct.value = p;
+  priceList.value = [];
+  priceLoading.value = true;
+  showPriceModal.value = true;
+  try {
+    const res = await getPricesByProductName(p.name);
+    if (res.success) {
+      priceList.value = res.data;
+    }
+  } catch (e) {}
+  priceLoading.value = false;
 }
 
 async function handleDelete(p) {
@@ -505,6 +600,162 @@ onMounted(async () => {
   max-width: 100%;
   max-height: 240px;
   object-fit: contain;
+}
+
+/* Price Query Modal */
+.price-modal {
+  background: white;
+  border-radius: var(--radius-xl);
+  width: 100%;
+  max-width: 720px;
+  max-height: 85vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 25px 60px rgba(0,0,0,0.2);
+}
+
+.price-modal .modal-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--gray-100);
+  flex-wrap: wrap;
+}
+
+.price-modal .modal-header h3 {
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.price-modal-oe {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #fef3c7;
+  color: #92400e;
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.price-modal-name {
+  color: var(--gray-500);
+  font-weight: 400;
+  font-size: 12px;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.price-modal-body {
+  padding: 20px 24px;
+  overflow-y: auto;
+}
+
+.price-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 48px 0;
+  color: var(--gray-400);
+  font-size: 14px;
+}
+
+.price-loading .loading-spinner {
+  width: 28px;
+  height: 28px;
+}
+
+.price-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 48px 0;
+  color: var(--gray-400);
+}
+
+.price-empty svg {
+  opacity: 0.3;
+}
+
+.price-empty p {
+  font-size: 14px;
+}
+
+.price-count {
+  font-size: 13px;
+  color: var(--gray-500);
+  margin-bottom: 16px;
+  font-weight: 500;
+}
+
+.price-table-wrap {
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.price-table {
+  font-size: 13px;
+}
+
+.price-table th {
+  background: var(--gray-50);
+  padding: 10px 14px;
+  font-size: 11px;
+}
+
+.price-table td {
+  padding: 10px 14px;
+}
+
+.td-supplier {
+  font-weight: 600;
+  color: var(--gray-800);
+}
+
+.td-price-val {
+  font-weight: 700;
+  color: var(--gray-900);
+  font-variant-numeric: tabular-nums;
+}
+
+.td-remark {
+  color: var(--gray-500);
+  font-size: 12px;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.price-query-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  border: none;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 1px 3px rgba(217, 119, 6, 0.3);
+}
+.price-query-btn:hover {
+  background: linear-gradient(135deg, #d97706, #b45309);
+  box-shadow: 0 2px 6px rgba(217, 119, 6, 0.45);
+  transform: translateY(-1px);
 }
 
 .required {

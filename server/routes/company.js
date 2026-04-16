@@ -23,33 +23,34 @@ router.put('/', async (req, res) => {
       seo_title_zh, seo_title_en, seo_title_es, seo_keywords,
     } = req.body;
 
-    await db.execute(`
-      UPDATE company_info SET
-        company_name_zh = COALESCE(?, company_name_zh),
-        company_name_en = COALESCE(?, company_name_en),
-        company_name_es = COALESCE(?, company_name_es),
-        logo_url = COALESCE(?, logo_url),
-        description_zh = COALESCE(?, description_zh),
-        description_en = COALESCE(?, description_en),
-        description_es = COALESCE(?, description_es),
-        address = COALESCE(?, address),
-        phone = COALESCE(?, phone),
-        email = COALESCE(?, email),
-        whatsapp = COALESCE(?, whatsapp),
-        website = COALESCE(?, website),
-        seo_title_zh = COALESCE(?, seo_title_zh),
-        seo_title_en = COALESCE(?, seo_title_en),
-        seo_title_es = COALESCE(?, seo_title_es),
-        seo_keywords = COALESCE(?, seo_keywords),
-        updated_at = datetime('now', 'localtime')
-      WHERE id = 1
-    `, [
+    const fields = {
       company_name_zh, company_name_en, company_name_es,
       logo_url,
       description_zh, description_en, description_es,
       address, phone, email, whatsapp, website,
       seo_title_zh, seo_title_en, seo_title_es, seo_keywords,
-    ]);
+    };
+
+    const sets = [];
+    const params = [];
+
+    for (const [key, value] of Object.entries(fields)) {
+      if (value !== undefined && value !== null) {
+        sets.push(`${key} = ?`);
+        params.push(String(value));
+      }
+    }
+
+    if (sets.length === 0) {
+      return res.status(400).json({ success: false, message: '没有需要更新的字段' });
+    }
+
+    sets.push("updated_at = datetime('now', 'localtime')");
+
+    await db.execute(
+      `UPDATE company_info SET ${sets.join(', ')} WHERE id = 1`,
+      params
+    );
 
     const info = await db.execute('SELECT * FROM company_info WHERE id = 1');
     res.json({ success: true, data: info.rows[0], message: '更新成功' });
