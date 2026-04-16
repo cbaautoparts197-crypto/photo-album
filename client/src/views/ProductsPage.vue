@@ -347,7 +347,7 @@ const products = ref([]);
 const company = ref({});
 const loading = ref(false);
 const page = ref(1);
-const pageSize = 24;
+const pageSize = 48;
 const total = ref(0);
 const totalPages = computed(() => Math.ceil(total.value / pageSize));
 const visiblePages = computed(() => {
@@ -787,8 +787,8 @@ onMounted(async () => {
 /* ==================== Product Grid ==================== */
 .products-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
 }
 
 .product-card {
@@ -1875,8 +1875,8 @@ onMounted(async () => {
 /* ==================== Responsive ==================== */
 @media (max-width: 1024px) {
   .products-grid {
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 16px;
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    gap: 14px;
   }
 }
 
