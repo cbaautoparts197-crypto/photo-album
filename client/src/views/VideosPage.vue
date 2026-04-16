@@ -8,11 +8,13 @@
     </div>
     <div class="container">
       <div v-if="videos.length" class="video-grid">
-        <div
+        <a
           v-for="video in videos"
           :key="video.id"
+          :href="video.youtube_url || '#'"
+          target="_blank"
+          rel="noopener noreferrer"
           class="video-card"
-          @click="openVideo(video)"
         >
           <div class="video-thumb">
             <img v-if="video.thumbnail_url" :src="video.thumbnail_url" :alt="video.title" loading="lazy" />
@@ -27,7 +29,7 @@
             <h3>{{ video.title }}</h3>
             <p v-if="video.description">{{ video.description }}</p>
           </div>
-        </div>
+        </a>
       </div>
       <div v-else class="empty-state">
         <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
@@ -44,10 +46,6 @@ import { getVideos } from '../api/modules';
 
 const { t } = useI18n();
 const videos = ref([]);
-
-function openVideo(video) {
-  if (video.youtube_url) window.open(video.youtube_url, '_blank');
-}
 
 onMounted(async () => {
   const res = await getVideos({ published: 1, limit: 100 });

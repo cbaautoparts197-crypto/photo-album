@@ -85,11 +85,13 @@
           <p class="section-desc">{{ t('videoCenterDesc') }}</p>
         </div>
         <div class="video-grid">
-          <div
+          <a
             v-for="video in featuredVideos"
             :key="video.id"
+            :href="video.youtube_url || '#'"
+            target="_blank"
+            rel="noopener noreferrer"
             class="video-card"
-            @click="openVideo(video)"
           >
             <div class="video-thumb-wrap">
               <img v-if="video.thumbnail_url" :src="video.thumbnail_url" :alt="video.title" loading="lazy" />
@@ -104,7 +106,7 @@
               <h3 class="video-title">{{ video.title }}</h3>
               <p v-if="video.description" class="video-desc">{{ video.description }}</p>
             </div>
-          </div>
+          </a>
         </div>
         <div class="featured-more">
           <router-link to="/videos" class="btn btn-view-all">
@@ -195,10 +197,6 @@ const heroSubtitle = computed(() => {
 
 function goProducts(categoryId) {
   router.push({ path: '/products', query: { category: categoryId } });
-}
-
-function openVideo(video) {
-  if (video.youtube_url) window.open(video.youtube_url, '_blank');
 }
 
 function getLocalizedTitle(item) {
