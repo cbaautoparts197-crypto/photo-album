@@ -557,6 +557,9 @@ onMounted(async () => {
   border: 1px solid var(--border-light);
   cursor: pointer;
   transition: var(--transition);
+  display: block;
+  text-decoration: none;
+  color: inherit;
 }
 
 .video-card:hover {
