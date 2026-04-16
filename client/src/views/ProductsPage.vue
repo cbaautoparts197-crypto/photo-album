@@ -1388,6 +1388,236 @@ onMounted(async () => {
   .inquiry-form-modal .inquiry-row { grid-template-columns: 1fr; gap: 0; }
 }
 
+/* ==================== Product Add Inquiry Button ==================== */
+.product-card { position: relative; }
+
+.product-add-inquiry {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 5;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: white;
+  color: var(--gray-500);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+  transition: all 0.2s;
+}
+
+.product-add-inquiry:hover {
+  background: var(--primary);
+  color: white;
+  transform: scale(1.1);
+}
+
+.product-add-inquiry.active {
+  background: var(--primary);
+  color: white;
+  box-shadow: 0 2px 12px rgba(59, 130, 246, 0.4);
+}
+
+.product-card-selected {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+
+/* ==================== Inquiry Float Bar ==================== */
+.inquiry-float-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: white;
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.12);
+  border-top: 1px solid var(--gray-200);
+}
+
+.inquiry-float-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.inquiry-float-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.inquiry-float-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(59, 130, 246, 0.1);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.inquiry-float-text {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--gray-800);
+}
+
+.inquiry-float-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* ==================== Batch Inquiry Modal ==================== */
+.batch-inquiry-modal {
+  max-height: 85vh;
+  overflow-y: auto;
+}
+
+.batch-products-list {
+  margin-bottom: 20px;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.batch-products-header {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: var(--gray-100);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gray-500);
+  text-transform: uppercase;
+}
+
+.batch-col-product { flex: 1; }
+.batch-col-qty { width: 130px; text-align: center; }
+
+.batch-product-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-top: 1px solid var(--gray-100);
+}
+
+.batch-product-info {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.batch-product-thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.batch-product-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.batch-product-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gray-800);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.batch-product-oe {
+  font-size: 11px;
+  color: var(--gray-500);
+}
+
+.batch-qty-control {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.batch-qty-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid var(--gray-200);
+  background: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  color: var(--gray-600);
+  transition: all 0.15s;
+}
+
+.batch-qty-btn:hover {
+  background: var(--gray-100);
+  border-color: var(--gray-300);
+}
+
+.batch-qty-input {
+  width: 48px;
+  height: 28px;
+  text-align: center;
+  border: 1px solid var(--gray-200);
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gray-800);
+}
+
+.batch-qty-input::-webkit-inner-spin-button,
+.batch-qty-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+}
+
+.batch-contact-section {
+  border-top: 1px solid var(--gray-200);
+  padding-top: 16px;
+}
+
+.inquiry-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  display: inline-block;
+}
+
+/* Slide-up transition */
+.slide-up-enter-active,
+.slide-up-leave-active {
+  transition: all 0.3s ease;
+}
+
+.slide-up-enter-from,
+.slide-up-leave-to {
+  transform: translateY(100%);
+  opacity: 0;
+}
+
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
