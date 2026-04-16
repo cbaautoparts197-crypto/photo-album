@@ -133,9 +133,11 @@ async function initDatabase() {
         product_name TEXT DEFAULT '',
         oe_number TEXT DEFAULT '',
         category_name TEXT DEFAULT '',
+        quantity INTEGER DEFAULT 1,
         customer_name TEXT NOT NULL,
         customer_email TEXT NOT NULL,
         customer_phone TEXT DEFAULT '',
+        customer_company TEXT DEFAULT '',
         customer_message TEXT DEFAULT '',
         status TEXT DEFAULT 'new',
         admin_reply TEXT DEFAULT '',
@@ -148,6 +150,10 @@ async function initDatabase() {
     await db.execute(`CREATE INDEX IF NOT EXISTS idx_supplier_prices_oe ON supplier_prices(oe_number)`);
     await db.execute(`CREATE INDEX IF NOT EXISTS idx_inquiries_status ON inquiries(status)`);
     await db.execute(`CREATE INDEX IF NOT EXISTS idx_inquiries_created ON inquiries(created_at)`);
+
+    // 迁移：为已有 inquiries 表添加新字段
+    try { await db.execute(`ALTER TABLE inquiries ADD COLUMN quantity INTEGER DEFAULT 1`); } catch(e) {}
+    try { await db.execute(`ALTER TABLE inquiries ADD COLUMN customer_company TEXT DEFAULT ''`); } catch(e) {}
 
     // ==================== videos 表 ====================
     await db.execute(`

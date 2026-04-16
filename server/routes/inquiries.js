@@ -2,6 +2,45 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 
+// POST /api/inquiries/batch - 批量询价提交
+router.post('/batch', async (req, res) => {
+  try {
+    const { items, customer_name, customer_email, customer_phone, customer_company, customer_message } = req.body;
+
+    if (!customer_name || !customer_email) {
+      return res.status(400).json({ success: false, message: '姓名和邮箱为必填项' });
+    }
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ success: false, message: '询价产品不能为空' });
+    }
+
+    const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    for (const item of items) {
+      await db.execute(
+        `INSERT INTO inquiries (product_id, product_name, oe_number, category_name, quantity, customer_name, customer_email, customer_phone, customer_company, customer_message, status, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?)`,
+        [
+          item.product_id || null,
+          item.product_name || '',
+          item.oe_number || '',
+          item.category_name || '',
+          item.quantity || 1,
+          customer_name,
+          customer_email,
+          customer_phone || '',
+          customer_company || '',
+          customer_message || '',
+          now,
+        ]
+      );
+    }
+
+    res.json({ success: true, message: `成功提交 ${items.length} 个产品询价` });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // POST /api/inquiries - 前端提交询盘
 router.post('/', async (req, res) => {
   try {

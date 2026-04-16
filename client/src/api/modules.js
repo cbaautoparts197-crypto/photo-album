@@ -51,6 +51,7 @@ export const importPrices = (formData) =>
 
 // ==================== 询盘管理 ====================
 export const submitInquiry = (data) => api.post('/inquiries', data);
+export const submitBatchInquiry = (data) => api.post('/inquiries/batch', data);
 export const getInquiries = (params) => api.get('/inquiries', { params });
 export const updateInquiryStatus = (id, status) => api.put(`/inquiries/${id}/status`, { status });
 export const replyInquiry = (id, data) => api.put(`/inquiries/${id}/reply`, data);

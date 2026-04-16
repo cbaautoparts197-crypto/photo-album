@@ -102,8 +102,19 @@
               v-for="p in products"
               :key="p.id"
               class="product-card"
+              :class="{ 'product-card-selected': isInquirySelected(p.id) }"
               @click="openDetail(p)"
             >
+              <!-- 添加询价勾选按钮 -->
+              <button
+                class="product-add-inquiry"
+                :class="{ active: isInquirySelected(p.id) }"
+                @click.stop="toggleInquiryItem(p)"
+                :title="isInquirySelected(p.id) ? t('removeFromInquiry') : t('addToInquiry')"
+              >
+                <svg v-if="!isInquirySelected(p.id)" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                <svg v-else width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              </button>
               <div class="product-thumb">
                 <img v-if="p.qiniu_url_watermarked" :src="p.qiniu_url_watermarked" :alt="p.name" loading="lazy" />
                 <img v-else-if="p.qiniu_url" :src="p.qiniu_url" :alt="p.name" loading="lazy" />
@@ -220,45 +231,99 @@
       </Transition>
     </Teleport>
 
-    <!-- 询价表单弹窗 -->
+    <!-- 浮动询价栏 -->
+    <Transition name="slide-up">
+      <div v-if="inquiryCart.length > 0" class="inquiry-float-bar">
+        <div class="inquiry-float-inner container">
+          <div class="inquiry-float-info">
+            <span class="inquiry-float-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            </span>
+            <span class="inquiry-float-text">{{ inquiryCart.length }} {{ t('inquiryItemsSelected') }}</span>
+          </div>
+          <div class="inquiry-float-actions">
+            <button class="btn btn-ghost" @click="inquiryCart = []">{{ t('inquiryClearAll') }}</button>
+            <button class="btn btn-primary" @click="showBatchInquiry = true">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+              {{ t('inquirySend') }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- 批量询价表单弹窗 -->
     <Teleport to="body">
       <Transition name="modal">
-        <div v-if="showInquiryForm" class="modal-overlay" @click.self="showInquiryForm = false">
-          <div class="inquiry-modal">
-            <button class="detail-close" @click="showInquiryForm = false">
+        <div v-if="showBatchInquiry" class="modal-overlay" @click.self="showBatchInquiry = false">
+          <div class="inquiry-modal batch-inquiry-modal">
+            <button class="detail-close" @click="showBatchInquiry = false">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </button>
             <div class="inquiry-modal-header">
-              <h2>{{ t('inquiryTitle') }}</h2>
-              <p class="inquiry-product-name">{{ detailProduct?.name }}</p>
+              <h2>{{ t('batchInquiryTitle') }}</h2>
+              <p class="inquiry-product-name">{{ inquiryCart.length }} {{ t('inquiryItemsSelected') }}</p>
             </div>
-            <form class="inquiry-form-modal" @submit.prevent="sendInquiry">
-              <div v-if="inquiryMessage" class="inquiry-message" :class="{ 'inquiry-message-success': inquirySent }">
+            <form class="inquiry-form-modal" @submit.prevent="sendBatchInquiry">
+              <div v-if="batchInquiryMessage" class="inquiry-message" :class="{ 'inquiry-message-success': batchInquirySent }">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                {{ inquiryMessage }}
+                {{ batchInquiryMessage }}
               </div>
-              <div class="inquiry-row">
-                <div class="inquiry-field">
-                  <label>{{ t('inquiryName') }} *</label>
-                  <input v-model="inquiryForm.name" type="text" required :placeholder="t('inquiryName')" />
+
+              <!-- 产品列表 + 数量 -->
+              <div class="batch-products-list">
+                <div class="batch-products-header">
+                  <span class="batch-col-product">{{ t('inquiryProduct') }}</span>
+                  <span class="batch-col-qty">{{ t('inquiryQuantity') }}</span>
+                </div>
+                <div v-for="item in inquiryCart" :key="item.id" class="batch-product-row">
+                  <div class="batch-product-info">
+                    <img v-if="item.qiniu_url || item.qiniu_url_watermarked" :src="item.qiniu_url_watermarked || item.qiniu_url" class="batch-product-thumb" />
+                    <div class="batch-product-text">
+                      <span class="batch-product-name">{{ item.name }}</span>
+                      <span v-if="item.oe_number" class="batch-product-oe">OE: {{ item.oe_number }}</span>
+                    </div>
+                  </div>
+                  <div class="batch-qty-control">
+                    <button type="button" class="batch-qty-btn" @click="item.qty = Math.max(1, item.qty - 1)">−</button>
+                    <input type="number" v-model.number="item.qty" min="1" class="batch-qty-input" />
+                    <button type="button" class="batch-qty-btn" @click="item.qty++">+</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 联系信息 -->
+              <div class="batch-contact-section">
+                <div class="inquiry-row">
+                  <div class="inquiry-field">
+                    <label>{{ t('inquiryName') }} *</label>
+                    <input v-model="batchForm.name" type="text" required :placeholder="t('inquiryName')" />
+                  </div>
+                  <div class="inquiry-field">
+                    <label>{{ t('inquiryEmail') }} *</label>
+                    <input v-model="batchForm.email" type="email" required :placeholder="t('inquiryEmail')" />
+                  </div>
+                </div>
+                <div class="inquiry-row">
+                  <div class="inquiry-field">
+                    <label>{{ t('inquiryPhone') }}</label>
+                    <input v-model="batchForm.phone" type="tel" :placeholder="t('inquiryPhone')" />
+                  </div>
+                  <div class="inquiry-field">
+                    <label>{{ t('inquiryCompany') }}</label>
+                    <input v-model="batchForm.company" type="text" :placeholder="t('inquiryCompany')" />
+                  </div>
                 </div>
                 <div class="inquiry-field">
-                  <label>{{ t('inquiryEmail') }} *</label>
-                  <input v-model="inquiryForm.email" type="email" required :placeholder="t('inquiryEmail')" />
+                  <label>{{ t('inquiryRemark') }}</label>
+                  <textarea v-model="batchForm.remark" rows="2" :placeholder="t('inquiryRemarkPlaceholder')"></textarea>
                 </div>
               </div>
-              <div class="inquiry-field">
-                <label>{{ t('inquiryPhone') }}</label>
-                <input v-model="inquiryForm.phone" type="tel" :placeholder="t('inquiryPhone')" />
-              </div>
-              <div class="inquiry-field">
-                <label>{{ t('inquiryRemark') }}</label>
-                <textarea v-model="inquiryForm.remark" rows="3" :placeholder="t('inquiryRemarkPlaceholder')"></textarea>
-              </div>
-              <button type="submit" class="btn btn-primary inquiry-submit-btn" :disabled="inquirySending">
-                <svg v-if="!inquirySending" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+
+              <button type="submit" class="btn btn-primary inquiry-submit-btn" :disabled="batchInquirySending">
+                <svg v-if="!batchInquirySending" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
                 <span v-else class="inquiry-spinner"></span>
-                {{ inquirySending ? t('inquirySending') : t('inquirySend') }}
+                {{ batchInquirySending ? t('inquirySending') : t('batchInquirySubmit') }}
               </button>
             </form>
           </div>
@@ -269,10 +334,10 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, reactive, onMounted, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-import { getProducts, getCategories, getCompanyInfo, submitInquiry } from '../api/modules';
+import { getProducts, getCategories, getCompanyInfo, submitInquiry, submitBatchInquiry } from '../api/modules';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -307,6 +372,62 @@ const inquirySending = ref(false);
 const inquirySent = ref(false);
 const inquiryMessage = ref('');
 const copied = ref(false);
+
+// 批量询价
+const inquiryCart = reactive([]);
+const showBatchInquiry = ref(false);
+const batchForm = reactive({ name: '', email: '', phone: '', company: '', remark: '' });
+const batchInquirySending = ref(false);
+const batchInquirySent = ref(false);
+const batchInquiryMessage = ref('');
+
+function isInquirySelected(pid) {
+  return inquiryCart.some(item => item.id === pid);
+}
+
+function toggleInquiryItem(product) {
+  const idx = inquiryCart.findIndex(item => item.id === product.id);
+  if (idx > -1) {
+    inquiryCart.splice(idx, 1);
+  } else {
+    inquiryCart.push({ id: product.id, name: product.name, oe_number: product.oe_number || '', category_name: product.category_name_zh || '', qiniu_url: product.qiniu_url, qiniu_url_watermarked: product.qiniu_url_watermarked, qty: 1 });
+  }
+}
+
+async function sendBatchInquiry() {
+  if (!batchForm.name.trim() || !batchForm.email.trim()) {
+    batchInquiryMessage.value = t('inquiryNameRequired');
+    batchInquirySent.value = false;
+    return;
+  }
+  batchInquirySending.value = true;
+  try {
+    await submitBatchInquiry({
+      items: inquiryCart.map(item => ({
+        product_id: item.id,
+        product_name: item.name,
+        oe_number: item.oe_number,
+        category_name: item.category_name,
+        quantity: item.qty,
+      })),
+      customer_name: batchForm.name.trim(),
+      customer_email: batchForm.email.trim(),
+      customer_phone: batchForm.phone?.trim() || '',
+      customer_company: batchForm.company?.trim() || '',
+      customer_message: batchForm.remark?.trim() || '',
+    });
+    batchInquirySent.value = true;
+    batchInquiryMessage.value = t('inquirySuccess');
+    setTimeout(() => {
+      showBatchInquiry.value = false;
+      inquiryCart.splice(0);
+    }, 1500);
+  } catch (e) {
+    batchInquirySent.value = false;
+    batchInquiryMessage.value = e.response?.data?.message || e.message;
+  }
+  batchInquirySending.value = false;
+}
 
 // 社媒分享链接
 const shareText = computed(() => detailProduct.value ? `${detailProduct.value.name} - ${company.value.company_name_en || 'RBS Auto Parts'}` : '');
@@ -684,6 +805,43 @@ onMounted(async () => {
   transform: translateY(-6px);
   box-shadow: var(--shadow-xl);
   border-color: transparent;
+}
+
+.product-card-selected {
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+}
+
+.product-add-inquiry {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 5;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: white;
+  border: 1.5px solid var(--gray-200);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: var(--gray-600);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.product-add-inquiry:hover {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+  transform: scale(1.1);
+}
+
+.product-add-inquiry.active {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
 }
 
 .product-thumb {
@@ -1232,6 +1390,234 @@ onMounted(async () => {
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+/* ==================== Inquiry Float Bar ==================== */
+.inquiry-float-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid var(--border-light);
+  padding: 14px 0;
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.08);
+}
+
+.inquiry-float-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.inquiry-float-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.inquiry-float-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.inquiry-float-text {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--gray-800);
+}
+
+.inquiry-float-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--gray-500);
+  padding: 8px 16px;
+  border-radius: var(--radius-lg);
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid var(--gray-200);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-ghost:hover {
+  color: #ef4444;
+  border-color: #ef4444;
+  background: #fef2f2;
+}
+
+/* ==================== Batch Inquiry Modal ==================== */
+.batch-inquiry-modal {
+  width: 620px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.batch-inquiry-modal form {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.batch-products-list {
+  background: var(--gray-50);
+  border-radius: var(--radius-lg);
+  margin-bottom: 20px;
+  overflow: hidden;
+}
+
+.batch-products-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--gray-500);
+  border-bottom: 1px solid var(--border-light);
+}
+
+.batch-col-product { flex: 1; }
+.batch-col-qty { width: 120px; text-align: center; }
+
+.batch-product-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.batch-product-row:last-child { border-bottom: none; }
+
+.batch-product-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.batch-product-thumb {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--gray-200);
+}
+
+.batch-product-text {
+  min-width: 0;
+}
+
+.batch-product-name {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--gray-800);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 300px;
+}
+
+.batch-product-oe {
+  display: block;
+  font-size: 12px;
+  color: var(--gray-500);
+  margin-top: 2px;
+}
+
+.batch-qty-control {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: white;
+  border: 1.5px solid var(--gray-200);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.batch-qty-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--gray-600);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+}
+
+.batch-qty-btn:hover { background: var(--gray-100); }
+
+.batch-qty-input {
+  width: 48px;
+  height: 32px;
+  border: none;
+  border-left: 1px solid var(--gray-200);
+  border-right: 1px solid var(--gray-200);
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--gray-800);
+  outline: none;
+  -moz-appearance: textfield;
+}
+
+.batch-qty-input::-webkit-outer-spin-button,
+.batch-qty-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.batch-contact-section {
+  background: white;
+  border-radius: var(--radius-lg);
+  padding: 0;
+}
+
+.slide-up-enter-active, .slide-up-leave-active {
+  transition: all 0.3s ease;
+}
+
+.slide-up-enter-from, .slide-up-leave-to {
+  transform: translateY(100%);
+  opacity: 0;
+}
+
+@media (max-width: 640px) {
+  .inquiry-float-inner {
+    flex-direction: column;
+    gap: 10px;
+  }
+  .batch-inquiry-modal {
+    width: 95vw;
+    padding: 24px 16px;
+  }
+  .batch-product-name { max-width: 140px; }
 }
 
 /* ==================== Transitions ==================== */
