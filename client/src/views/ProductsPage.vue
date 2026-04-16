@@ -196,41 +196,11 @@
                   </div>
                 </div>
 
-                <!-- 询价表单 -->
-                <div class="detail-inquiry-section">
-                  <div class="detail-section-label">{{ t('inquiryTitle') }}</div>
-                  <form class="inquiry-form" @submit.prevent="sendInquiry">
-                    <div v-if="inquiryMessage" class="inquiry-message" :class="{ 'inquiry-message-success': inquirySent }">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                      {{ inquiryMessage }}
-                    </div>
-                    <div class="inquiry-row">
-                      <div class="inquiry-field">
-                        <label>{{ t('inquiryName') }} *</label>
-                        <input v-model="inquiryForm.name" type="text" required :placeholder="t('inquiryName')" />
-                      </div>
-                      <div class="inquiry-field">
-                        <label>{{ t('inquiryEmail') }} *</label>
-                        <input v-model="inquiryForm.email" type="email" required :placeholder="t('inquiryEmail')" />
-                      </div>
-                    </div>
-                    <div class="inquiry-field">
-                      <label>{{ t('inquiryPhone') }}</label>
-                      <input v-model="inquiryForm.phone" type="tel" :placeholder="t('inquiryPhone')" />
-                    </div>
-                    <div class="inquiry-field">
-                      <label>{{ t('inquiryRemark') }}</label>
-                      <textarea v-model="inquiryForm.remark" rows="3" :placeholder="t('inquiryRemarkPlaceholder')"></textarea>
-                    </div>
-                    <!-- 产品信息（隐藏在表单中随邮件发送） -->
-                    <input type="hidden" :value="detailProduct.name" />
-                    <button type="submit" class="btn btn-primary inquiry-submit-btn" :disabled="inquirySending">
-                      <svg v-if="!inquirySending" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-                      <span v-else class="inquiry-spinner"></span>
-                      {{ inquirySending ? t('inquirySending') : t('inquirySend') }}
-                    </button>
-                  </form>
-                </div>
+                <!-- Send Inquiry 按钮 -->
+                <button class="btn btn-primary send-inquiry-trigger" @click="showInquiryForm = true">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                  {{ t('inquirySend') }}
+                </button>
 
                 <!-- 直接联系方式 -->
                 <div class="detail-actions">
@@ -245,6 +215,52 @@
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- 询价表单弹窗 -->
+    <Teleport to="body">
+      <Transition name="modal">
+        <div v-if="showInquiryForm" class="modal-overlay" @click.self="showInquiryForm = false">
+          <div class="inquiry-modal">
+            <button class="detail-close" @click="showInquiryForm = false">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+            <div class="inquiry-modal-header">
+              <h2>{{ t('inquiryTitle') }}</h2>
+              <p class="inquiry-product-name">{{ detailProduct?.name }}</p>
+            </div>
+            <form class="inquiry-form-modal" @submit.prevent="sendInquiry">
+              <div v-if="inquiryMessage" class="inquiry-message" :class="{ 'inquiry-message-success': inquirySent }">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                {{ inquiryMessage }}
+              </div>
+              <div class="inquiry-row">
+                <div class="inquiry-field">
+                  <label>{{ t('inquiryName') }} *</label>
+                  <input v-model="inquiryForm.name" type="text" required :placeholder="t('inquiryName')" />
+                </div>
+                <div class="inquiry-field">
+                  <label>{{ t('inquiryEmail') }} *</label>
+                  <input v-model="inquiryForm.email" type="email" required :placeholder="t('inquiryEmail')" />
+                </div>
+              </div>
+              <div class="inquiry-field">
+                <label>{{ t('inquiryPhone') }}</label>
+                <input v-model="inquiryForm.phone" type="tel" :placeholder="t('inquiryPhone')" />
+              </div>
+              <div class="inquiry-field">
+                <label>{{ t('inquiryRemark') }}</label>
+                <textarea v-model="inquiryForm.remark" rows="3" :placeholder="t('inquiryRemarkPlaceholder')"></textarea>
+              </div>
+              <button type="submit" class="btn btn-primary inquiry-submit-btn" :disabled="inquirySending">
+                <svg v-if="!inquirySending" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                <span v-else class="inquiry-spinner"></span>
+                {{ inquirySending ? t('inquirySending') : t('inquirySend') }}
+              </button>
+            </form>
           </div>
         </div>
       </Transition>
@@ -285,6 +301,7 @@ const sidebarOpen = ref(false);
 const detailProduct = ref(null);
 
 // 询价表单
+const showInquiryForm = ref(false);
 const inquiryForm = ref({ name: '', email: '', phone: '', remark: '' });
 const inquirySending = ref(false);
 const inquirySent = ref(false);
@@ -313,6 +330,7 @@ function openDetail(p) {
   inquiryForm.value = { name: '', email: '', phone: '', remark: '' };
   inquirySent.value = false;
   inquiryMessage.value = '';
+  showInquiryForm.value = false;
 }
 
 // 发送询价（提交到后台数据库）
@@ -337,6 +355,7 @@ async function sendInquiry() {
     });
     inquirySent.value = true;
     inquiryMessage.value = t('inquirySuccess');
+    setTimeout(() => { showInquiryForm.value = false; }, 1500);
   } catch (e) {
     inquirySent.value = false;
     inquiryMessage.value = e.response?.data?.message || e.message;
@@ -1110,6 +1129,105 @@ onMounted(async () => {
   border-top-color: white;
   border-radius: 50%;
   animation: spin 0.6s linear infinite;
+}
+
+/* ==================== Send Inquiry Trigger ==================== */
+.send-inquiry-trigger {
+  width: 100%;
+  padding: 14px 24px;
+  font-size: 15px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 16px;
+  border-radius: var(--radius-lg);
+}
+
+/* ==================== Inquiry Modal ==================== */
+.inquiry-modal {
+  background: white;
+  border-radius: var(--radius-xl);
+  padding: 40px;
+  width: 520px;
+  max-width: 92vw;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.25);
+}
+
+.inquiry-modal-header {
+  margin-bottom: 28px;
+}
+
+.inquiry-modal-header h2 {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--gray-900);
+  margin-bottom: 6px;
+}
+
+.inquiry-product-name {
+  font-size: 14px;
+  color: var(--gray-500);
+  background: var(--gray-100);
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 20px;
+}
+
+.inquiry-form-modal .inquiry-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.inquiry-form-modal .inquiry-field {
+  margin-bottom: 16px;
+}
+
+.inquiry-form-modal .inquiry-field label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gray-700);
+  margin-bottom: 6px;
+}
+
+.inquiry-form-modal .inquiry-field input,
+.inquiry-form-modal .inquiry-field textarea {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1.5px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  font-size: 14px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  background: white;
+  color: var(--gray-800);
+  box-sizing: border-box;
+}
+
+.inquiry-form-modal .inquiry-field input:focus,
+.inquiry-form-modal .inquiry-field textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.inquiry-form-modal .inquiry-submit-btn {
+  width: 100%;
+  padding: 14px 24px;
+  font-size: 15px;
+  font-weight: 600;
+  margin-top: 8px;
+  border-radius: var(--radius-lg);
+}
+
+@media (max-width: 540px) {
+  .inquiry-modal { padding: 28px 20px; }
+  .inquiry-form-modal .inquiry-row { grid-template-columns: 1fr; gap: 0; }
 }
 
 @keyframes spin {
