@@ -1873,9 +1873,15 @@ onMounted(async () => {
 }
 
 /* ==================== Responsive ==================== */
+@media (max-width: 1200px) {
+  .products-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
 @media (max-width: 1024px) {
   .products-grid {
-    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    grid-template-columns: repeat(3, 1fr);
     gap: 14px;
   }
 }
