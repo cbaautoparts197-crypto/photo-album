@@ -29,6 +29,7 @@ const routes = [
       { path: 'inquiries', component: () => import('../views/admin/InquiriesPage.vue') },
       { path: 'videos', component: () => import('../views/admin/VideosPage.vue') },
       { path: 'news', component: () => import('../views/admin/NewsPage.vue') },
+      { path: 'suppliers', component: () => import('../views/admin/SuppliersPage.vue') },
     ],
   },
 ];

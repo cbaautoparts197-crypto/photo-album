@@ -71,3 +71,11 @@ export const createNews = (data) => api.post('/news', data);
 export const updateNews = (id, data) => api.put(`/news/${id}`, data);
 export const deleteNews = (id) => api.delete(`/news/${id}`);
 export const batchDeleteNews = (ids) => api.post('/news/batch-delete', { ids });
+
+// ==================== 供应商管理 ====================
+export const getSuppliers = (params) => api.get('/suppliers', { params });
+export const getSupplierById = (id) => api.get(`/suppliers/${id}`);
+export const createSupplier = (data) => api.post('/suppliers', data);
+export const updateSupplier = (id, data) => api.put(`/suppliers/${id}`, data);
+export const deleteSupplier = (id) => api.delete(`/suppliers/${id}`);
+export const batchDeleteSuppliers = (ids) => api.post('/suppliers/batch-delete', { ids });

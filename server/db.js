@@ -195,6 +195,22 @@ async function initDatabase() {
       )
     `);
 
+    await db.execute(
+      `CREATE TABLE IF NOT EXISTS suppliers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL DEFAULT '',
+        bank_account_name TEXT DEFAULT '',
+        bank_card_number TEXT DEFAULT '',
+        bank_name TEXT DEFAULT '',
+        contact_person TEXT DEFAULT '',
+        contact_phone TEXT DEFAULT '',
+        car_models TEXT DEFAULT '',
+        factory_catalogs TEXT DEFAULT '[]',
+        created_at DATETIME DEFAULT (datetime('now','localtime')),
+        updated_at DATETIME DEFAULT (datetime('now','localtime'))
+      )`
+    );
+
     await db.execute(`CREATE INDEX IF NOT EXISTS idx_videos_published ON videos(is_published, sort_order)`);
     await db.execute(`CREATE INDEX IF NOT EXISTS idx_news_published ON news(is_published, sort_order)`);
 
