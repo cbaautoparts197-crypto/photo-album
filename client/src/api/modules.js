@@ -79,3 +79,28 @@ export const createSupplier = (data) => api.post('/suppliers', data);
 export const updateSupplier = (id, data) => api.put(`/suppliers/${id}`, data);
 export const deleteSupplier = (id) => api.delete(`/suppliers/${id}`);
 export const batchDeleteSuppliers = (ids) => api.post('/suppliers/batch-delete', { ids });
+
+// ==================== 报价管理 ====================
+export const getQuotations = (params) => api.get('/quotations', { params });
+export const getQuotationById = (id) => api.get(`/quotations/${id}`);
+export const createQuotation = (data) => api.post('/quotations', data);
+export const batchCreateQuotations = (data) => api.post('/quotations/batch', data);
+export const updateQuotation = (id, data) => api.put(`/quotations/${id}`, data);
+export const deleteQuotation = (id) => api.delete(`/quotations/${id}`);
+export const batchDeleteQuotations = (ids) => api.post('/quotations/batch-delete', { ids });
+export const autoPriceQuotation = (id) => api.post(`/quotations/${id}/auto-price`);
+export const batchAutoPrice = (ids) => api.post('/quotations/batch-auto-price', { ids });
+export const importQuotations = (formData) =>
+  api.post('/quotations/import', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+
+// ==================== 客户管理 ====================
+export const getCustomers = (params) => api.get('/customers', { params });
+export const getCustomerById = (id) => api.get(`/customers/${id}`);
+export const createCustomer = (data) => api.post('/customers', data);
+export const updateCustomer = (id, data) => api.put(`/customers/${id}`, data);
+export const deleteCustomer = (id) => api.delete(`/customers/${id}`);
+export const batchDeleteCustomers = (ids) => api.post('/customers/batch-delete', { ids });
+export const searchCustomers = (q) => api.get('/customers/select/search', { params: { q } });
+export const autoMatchCustomer = (data) => api.post('/customers/auto-match', data);

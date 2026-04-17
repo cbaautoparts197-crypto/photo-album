@@ -26,6 +26,8 @@ app.use('/api/inquiries', require('./routes/inquiries'));
 app.use('/api/videos', require('./routes/videos'));
 app.use('/api/news', require('./routes/news'));
 app.use('/api/suppliers', require('./routes/suppliers'));
+app.use('/api/quotations', require('./routes/quotations'));
+app.use('/api/customers', require('./routes/customers'));
 
 // SEO: sitemap
 app.use('/api/sitemap', require('./routes/sitemap'));

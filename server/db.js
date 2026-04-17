@@ -214,6 +214,58 @@ async function initDatabase() {
     await db.execute(`CREATE INDEX IF NOT EXISTS idx_videos_published ON videos(is_published, sort_order)`);
     await db.execute(`CREATE INDEX IF NOT EXISTS idx_news_published ON news(is_published, sort_order)`);
 
+    // ==================== quotations 表（报价管理）====================
+    await db.execute(
+      `CREATE TABLE IF NOT EXISTS quotations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        source TEXT DEFAULT 'internal',
+        customer_name TEXT DEFAULT '',
+        customer_email TEXT DEFAULT '',
+        customer_phone TEXT DEFAULT '',
+        customer_company TEXT DEFAULT '',
+        oe_number TEXT NOT NULL DEFAULT '',
+        quantity INTEGER DEFAULT 1,
+        unit_price REAL DEFAULT 0,
+        currency TEXT DEFAULT 'USD',
+        supplier_name TEXT DEFAULT '',
+        remark TEXT DEFAULT '',
+        status TEXT DEFAULT 'pending',
+        created_at DATETIME DEFAULT (datetime('now','localtime')),
+        updated_at DATETIME DEFAULT (datetime('now','localtime'))
+      )`
+    );
+
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_quotations_oe ON quotations(oe_number)`);
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_quotations_status ON quotations(status)`);
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_quotations_created ON quotations(created_at)`);
+    // 为 quotations 表添加 customer_id 字段（已有表 ALTER）
+    try { await db.execute(`ALTER TABLE quotations ADD COLUMN customer_id INTEGER`); } catch(e) {}
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_quotations_customer ON quotations(customer_id)`);
+
+    // ==================== customers 表（客户管理）====================
+    await db.execute(
+      `CREATE TABLE IF NOT EXISTS customers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL DEFAULT '',
+        email TEXT DEFAULT '',
+        phone TEXT DEFAULT '',
+        company TEXT DEFAULT '',
+        country TEXT DEFAULT '',
+        address TEXT DEFAULT '',
+        remark TEXT DEFAULT '',
+        source TEXT DEFAULT 'manual',
+        created_at DATETIME DEFAULT (datetime('now','localtime')),
+        updated_at DATETIME DEFAULT (datetime('now','localtime'))
+      )`
+    );
+
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_customers_email ON customers(email)`);
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_customers_company ON customers(company)`);
+
+    // 迁移：为 quotations 和 inquiries 表添加 customer_id 字段
+    try { await db.execute(`ALTER TABLE quotations ADD COLUMN customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL`); } catch(e) {}
+    try { await db.execute(`ALTER TABLE inquiries ADD COLUMN customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL`); } catch(e) {}
+
     console.log('  Database tables initialized successfully');
   } catch (err) {
     console.error('  Database initialization failed:', err.message);
