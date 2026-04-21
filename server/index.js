@@ -28,6 +28,8 @@ app.use('/api/news', require('./routes/news'));
 app.use('/api/suppliers', require('./routes/suppliers'));
 app.use('/api/quotations', require('./routes/quotations'));
 app.use('/api/customers', require('./routes/customers'));
+app.use('/api/orders', require('./routes/orders'));
+app.use('/api/purchase-contracts', require('./routes/purchase_contracts'));
 
 // SEO: sitemap
 app.use('/api/sitemap', require('./routes/sitemap'));

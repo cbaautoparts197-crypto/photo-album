@@ -18,7 +18,7 @@ router.get('/', async (req, res) => {
     }
     const count = await db.execute(`SELECT COUNT(*) as total FROM suppliers WHERE ${where}`, params);
     const rows = await db.execute(
-      `SELECT * FROM suppliers WHERE ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+      `SELECT * FROM suppliers WHERE ${where} ORDER BY CASE priority WHEN 'high' THEN 1 WHEN 'normal' THEN 2 WHEN 'backup' THEN 3 ELSE 4 END, created_at DESC LIMIT ? OFFSET ?`,
       [...params, Number(limit), offset]
     );
     res.json({ success: true, data: rows.rows, pagination: { total: count.rows[0].total, page: Number(page), limit: Number(limit) } });
@@ -41,10 +41,10 @@ router.get('/:id', async (req, res) => {
 // POST /api/suppliers - 新增供应商
 router.post('/', async (req, res) => {
   try {
-    const { name, bank_account_name, bank_card_number, bank_name, contact_person, contact_phone, car_models, factory_catalogs } = req.body;
+    const { name, bank_account_name, bank_card_number, bank_name, contact_person, contact_phone, car_models, factory_catalogs, priority } = req.body;
     const result = await db.execute(
-      `INSERT INTO suppliers (name, bank_account_name, bank_card_number, bank_name, contact_person, contact_phone, car_models, factory_catalogs) VALUES (?,?,?,?,?,?,?,?)`,
-      [name || '', bank_account_name || '', bank_card_number || '', bank_name || '', contact_person || '', contact_phone || '', car_models || '', typeof factory_catalogs === 'string' ? factory_catalogs : JSON.stringify(factory_catalogs || [])]
+      `INSERT INTO suppliers (name, bank_account_name, bank_card_number, bank_name, contact_person, contact_phone, car_models, factory_catalogs, priority) VALUES (?,?,?,?,?,?,?,?,?)`,
+      [name || '', bank_account_name || '', bank_card_number || '', bank_name || '', contact_person || '', contact_phone || '', car_models || '', typeof factory_catalogs === 'string' ? factory_catalogs : JSON.stringify(factory_catalogs || []), priority || 'normal']
     );
     res.json({ success: true, data: { id: result.lastInsertRowid } });
   } catch (err) {
@@ -55,10 +55,10 @@ router.post('/', async (req, res) => {
 // PUT /api/suppliers/:id
 router.put('/:id', async (req, res) => {
   try {
-    const { name, bank_account_name, bank_card_number, bank_name, contact_person, contact_phone, car_models, factory_catalogs } = req.body;
+    const { name, bank_account_name, bank_card_number, bank_name, contact_person, contact_phone, car_models, factory_catalogs, priority } = req.body;
     await db.execute(
-      `UPDATE suppliers SET name=?, bank_account_name=?, bank_card_number=?, bank_name=?, contact_person=?, contact_phone=?, car_models=?, factory_catalogs=?, updated_at=datetime('now','localtime') WHERE id=?`,
-      [name || '', bank_account_name || '', bank_card_number || '', bank_name || '', contact_person || '', contact_phone || '', car_models || '', typeof factory_catalogs === 'string' ? factory_catalogs : JSON.stringify(factory_catalogs || []), Number(req.params.id)]
+      `UPDATE suppliers SET name=?, bank_account_name=?, bank_card_number=?, bank_name=?, contact_person=?, contact_phone=?, car_models=?, factory_catalogs=?, priority=?, updated_at=datetime('now','localtime') WHERE id=?`,
+      [name || '', bank_account_name || '', bank_card_number || '', bank_name || '', contact_person || '', contact_phone || '', car_models || '', typeof factory_catalogs === 'string' ? factory_catalogs : JSON.stringify(factory_catalogs || []), priority || 'normal', Number(req.params.id)]
     );
     res.json({ success: true });
   } catch (err) {

@@ -20,8 +20,26 @@ export const batchDeleteProducts = (ids) => api.post('/products/batch-delete', {
 export const batchMoveCategory = (ids, categoryId) => api.put('/products/batch-move-category', { ids, category_id: categoryId });
 
 // ==================== 公司 ====================
-export const getCompanyInfo = () => api.get('/company');
-export const updateCompanyInfo = (data) => api.put('/company', data);
+// 公司信息全局缓存（5分钟TTL + 并发去重）
+let _companyCache = null;
+let _companyPromise = null;
+
+export const getCompanyInfo = async () => {
+  if (_companyCache && Date.now() - _companyCache._ts < 5 * 60 * 1000) {
+    return _companyCache.data;
+  }
+  if (!_companyPromise) {
+    _companyPromise = api.get('/company').then(data => {
+      _companyCache = { data, _ts: Date.now() };
+      _companyPromise = null;
+      return data;
+    }).catch(() => { _companyPromise = null; throw new Error('Failed'); });
+  }
+  return _companyPromise;
+};
+
+export const clearCompanyCache = () => { _companyCache = null; };
+export const updateCompanyInfo = (data) => api.put('/company', data).then(res => { clearCompanyCache(); return res; });
 
 // ==================== 水印 ====================
 export const getWatermarkSettings = () => api.get('/watermark');
@@ -104,3 +122,25 @@ export const deleteCustomer = (id) => api.delete(`/customers/${id}`);
 export const batchDeleteCustomers = (ids) => api.post('/customers/batch-delete', { ids });
 export const searchCustomers = (q) => api.get('/customers/select/search', { params: { q } });
 export const autoMatchCustomer = (data) => api.post('/customers/auto-match', data);
+
+// ==================== 订单管理 ====================
+export const getOrders = (params) => api.get('/orders', { params });
+export const getOrderById = (id) => api.get(`/orders/${id}`);
+export const createOrder = (data) => api.post('/orders', data);
+export const updateOrder = (id, data) => api.put(`/orders/${id}`, data);
+export const updateOrderStatus = (id, status) => api.put(`/orders/${id}/status`, { status });
+export const deleteOrder = (id) => api.delete(`/orders/${id}`);
+export const batchDeleteOrders = (ids) => api.post('/orders/batch-delete', { ids });
+
+// ==================== 采购合同管理 ====================
+export const getPurchaseContracts = (params) => api.get('/purchase-contracts', { params });
+export const getPurchaseContractById = (id) => api.get(`/purchase-contracts/${id}`);
+export const createPurchaseContract = (data) => api.post('/purchase-contracts', data);
+export const generateContractsFromOrder = (orderId) => api.post('/purchase-contracts/generate-from-order', { order_id: orderId });
+export const updatePurchaseContract = (id, data) => api.put(`/purchase-contracts/${id}`, data);
+export const updatePurchaseContractStatus = (id, status) => api.put(`/purchase-contracts/${id}/status`, { status });
+export const deletePurchaseContract = (id) => api.delete(`/purchase-contracts/${id}`);
+export const batchDeletePurchaseContracts = (ids) => api.post('/purchase-contracts/batch-delete', { ids });
+
+// ==================== 询盘转报价 ====================
+export const inquiryToQuotation = (id) => api.post(`/inquiries/${id}/to-quotation`);

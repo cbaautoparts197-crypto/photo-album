@@ -246,6 +246,50 @@ router.post('/batch-delete', async (req, res) => {
   }
 });
 
+// POST /api/products/delete-all - 删除全部产品（含七牛云文件）
+router.post('/delete-all', async (req, res) => {
+  try {
+    const { refreshConfig } = require('../utils/qiniu');
+    await refreshConfig();
+
+    // 1. 获取所有产品的 qiniu_key
+    const result = await db.execute('SELECT id, qiniu_key FROM products');
+    const products = result.rows;
+    if (products.length === 0) {
+      return res.json({ success: true, message: '没有需要删除的产品', deleted: 0 });
+    }
+
+    // 2. 逐个从七牛云删除（分批处理，每批50个并行）
+    const { deleteFromQiniu } = require('../utils/qiniu');
+    let qiniuSuccess = 0;
+    let qiniuFailed = 0;
+    const batchSize = 50;
+    for (let i = 0; i < products.length; i += batchSize) {
+      const batch = products.slice(i, i + batchSize);
+      const results = await Promise.allSettled(
+        batch.map(p => p.qiniu_key ? deleteFromQiniu(p.qiniu_key) : Promise.resolve())
+      );
+      for (const r of results) {
+        if (r.status === 'fulfilled') qiniuSuccess++;
+        else qiniuFailed++;
+      }
+    }
+
+    // 3. 删除数据库中所有产品
+    await db.execute('DELETE FROM products');
+
+    res.json({
+      success: true,
+      message: `已删除 ${products.length} 个产品（七牛云删除 ${qiniuSuccess} 成功，${qiniuFailed} 失败）`,
+      deleted: products.length,
+      qiniuSuccess,
+      qiniuFailed,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // PUT /api/products/batch-move-category - 批量移动
 router.put('/batch-move-category', async (req, res) => {
   try {

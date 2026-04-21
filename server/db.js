@@ -50,6 +50,10 @@ async function initDatabase() {
     // 迁移：确保 car_model 字段存在
     try { await db.execute(`ALTER TABLE products ADD COLUMN car_model TEXT`); } catch(e) {}
 
+    // 产品表索引优化
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_products_category ON products(category_id)`);
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_products_sort ON products(sort_order, created_at DESC)`);
+
     await db.execute(`
       CREATE TABLE IF NOT EXISTS company_info (
         id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -206,10 +210,13 @@ async function initDatabase() {
         contact_phone TEXT DEFAULT '',
         car_models TEXT DEFAULT '',
         factory_catalogs TEXT DEFAULT '[]',
+        priority TEXT DEFAULT 'normal',
         created_at DATETIME DEFAULT (datetime('now','localtime')),
         updated_at DATETIME DEFAULT (datetime('now','localtime'))
       )`
     );
+    // 迁移：为已有 suppliers 表添加 priority 字段
+    try { await db.execute(`ALTER TABLE suppliers ADD COLUMN priority TEXT DEFAULT 'normal'`); } catch(e) {}
 
     await db.execute(`CREATE INDEX IF NOT EXISTS idx_videos_published ON videos(is_published, sort_order)`);
     await db.execute(`CREATE INDEX IF NOT EXISTS idx_news_published ON news(is_published, sort_order)`);
@@ -265,6 +272,89 @@ async function initDatabase() {
     // 迁移：为 quotations 和 inquiries 表添加 customer_id 字段
     try { await db.execute(`ALTER TABLE quotations ADD COLUMN customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL`); } catch(e) {}
     try { await db.execute(`ALTER TABLE inquiries ADD COLUMN customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL`); } catch(e) {}
+
+    // ==================== orders 表（订单管理）====================
+    await db.execute(
+      `CREATE TABLE IF NOT EXISTS orders (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        quotation_ids TEXT DEFAULT '',
+        customer_name TEXT DEFAULT '',
+        customer_email TEXT DEFAULT '',
+        customer_phone TEXT DEFAULT '',
+        customer_company TEXT DEFAULT '',
+        customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+        remark TEXT DEFAULT '',
+        status TEXT DEFAULT 'pending',
+        total_amount REAL DEFAULT 0,
+        currency TEXT DEFAULT 'USD',
+        created_at DATETIME DEFAULT (datetime('now','localtime')),
+        updated_at DATETIME DEFAULT (datetime('now','localtime'))
+      )`
+    );
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status)`);
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_orders_created ON orders(created_at)`);
+
+    // ==================== order_items 表（订单明细）====================
+    await db.execute(
+      `CREATE TABLE IF NOT EXISTS order_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+        quotation_id INTEGER REFERENCES quotations(id) ON DELETE SET NULL,
+        oe_number TEXT DEFAULT '',
+        product_name TEXT DEFAULT '',
+        quantity INTEGER DEFAULT 1,
+        unit_price REAL DEFAULT 0,
+        currency TEXT DEFAULT 'USD',
+        supplier_name TEXT DEFAULT '',
+        remark TEXT DEFAULT '',
+        created_at DATETIME DEFAULT (datetime('now','localtime'))
+      )`
+    );
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id)`);
+
+    // ==================== purchase_contracts 表（采购合同）====================
+    await db.execute(
+      `CREATE TABLE IF NOT EXISTS purchase_contracts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        order_ids TEXT DEFAULT '',
+        supplier_name TEXT NOT NULL DEFAULT '',
+        remark TEXT DEFAULT '',
+        status TEXT DEFAULT 'pending',
+        total_amount REAL DEFAULT 0,
+        currency TEXT DEFAULT 'USD',
+        created_at DATETIME DEFAULT (datetime('now','localtime')),
+        updated_at DATETIME DEFAULT (datetime('now','localtime'))
+      )`
+    );
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_purchase_contracts_status ON purchase_contracts(status)`);
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_purchase_contracts_supplier ON purchase_contracts(supplier_name)`);
+
+    // ==================== purchase_contract_items 表（采购合同明细）====================
+    await db.execute(
+      `CREATE TABLE IF NOT EXISTS purchase_contract_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        contract_id INTEGER NOT NULL REFERENCES purchase_contracts(id) ON DELETE CASCADE,
+        order_id INTEGER REFERENCES orders(id) ON DELETE SET NULL,
+        order_item_id INTEGER REFERENCES order_items(id) ON DELETE SET NULL,
+        oe_number TEXT DEFAULT '',
+        product_name TEXT DEFAULT '',
+        quantity INTEGER DEFAULT 1,
+        unit_price REAL DEFAULT 0,
+        currency TEXT DEFAULT 'USD',
+        remark TEXT DEFAULT '',
+        created_at DATETIME DEFAULT (datetime('now','localtime'))
+      )`
+    );
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_pc_items_contract ON purchase_contract_items(contract_id)`);
+
+    // 迁移：inquiries 表添加 quotation_id 字段
+    try { await db.execute(`ALTER TABLE inquiries ADD COLUMN quotation_id INTEGER REFERENCES quotations(id) ON DELETE SET NULL`); } catch(e) {}
+    // 迁移：inquiries 表添加 group_id 字段（批量询盘分组）
+    try { await db.execute(`ALTER TABLE inquiries ADD COLUMN group_id TEXT DEFAULT ''`); } catch(e) {}
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_inquiries_group ON inquiries(group_id)`);
+
+    // 迁移：quotations 表添加 order_id 字段
+    try { await db.execute(`ALTER TABLE quotations ADD COLUMN order_id INTEGER REFERENCES orders(id) ON DELETE SET NULL`); } catch(e) {}
 
     console.log('  Database tables initialized successfully');
   } catch (err) {

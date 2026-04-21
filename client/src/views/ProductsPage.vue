@@ -75,11 +75,11 @@
                 v-model="keyword"
                 class="search-input"
                 :placeholder="t('search')"
-                @keyup.enter="loadProducts()"
+                @keyup.enter="page = 1; products = []; loadProducts()"
               />
             </div>
             <div class="toolbar-sort">
-              <select v-model="sortBy" class="sort-select" @change="loadProducts()">
+              <select v-model="sortBy" class="sort-select" @change="page = 1; products = []; loadProducts()">
                 <option value="newest">{{ t('newest') }}</option>
                 <option value="name">{{ t('name') }}</option>
               </select>
@@ -138,20 +138,14 @@
             </div>
           </div>
 
-          <!-- 分页 -->
-          <div v-if="totalPages > 1" class="pagination">
-            <button class="page-btn" :disabled="page <= 1" @click="page--; loadProducts()">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+          <!-- 加载更多 -->
+          <div v-if="products.length > 0 && page < totalPages" class="load-more">
+            <button class="btn btn-outline" @click="loadMore" :disabled="loading">
+              <svg v-if="!loading" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              <span v-if="loading" class="inquiry-spinner"></span>
+              {{ loading ? t('loading') : t('loadMore') }}
             </button>
-            <button
-              v-for="n in visiblePages"
-              :key="n"
-              :class="['page-btn', { active: n === page }]"
-              @click="page = n; loadProducts()"
-            >{{ n }}</button>
-            <button class="page-btn" :disabled="page >= totalPages" @click="page++; loadProducts()">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-            </button>
+            <span class="load-more-info">{{ products.length }} / {{ total }}</span>
           </div>
         </div>
       </div>
@@ -347,17 +341,9 @@ const products = ref([]);
 const company = ref({});
 const loading = ref(false);
 const page = ref(1);
-const pageSize = 48;
+const pageSize = 20;
 const total = ref(0);
 const totalPages = computed(() => Math.ceil(total.value / pageSize));
-const visiblePages = computed(() => {
-  const pages = [];
-  let start = Math.max(1, page.value - 2);
-  let end = Math.min(totalPages.value, start + 4);
-  if (end - start < 4) start = Math.max(1, end - 4);
-  for (let i = start; i <= end; i++) pages.push(i);
-  return pages;
-});
 
 const selectedCategory = ref(null);
 const keyword = ref('');
@@ -488,22 +474,32 @@ function selectCategory(id) {
   selectedCategory.value = id;
   page.value = 1;
   sidebarOpen.value = false;
+  products.value = [];
   loadProducts();
 }
 
-async function loadProducts() {
-  loading.value = true;
+async function loadProducts(append = false) {
+  if (!append) loading.value = true;
   try {
     const params = { page: page.value, limit: pageSize, sort: sortBy.value };
     if (selectedCategory.value) params.category_id = selectedCategory.value;
     if (keyword.value) params.search = keyword.value;
     const res = await getProducts(params);
     if (res.success) {
-      products.value = res.data.items;
+      if (append) {
+        products.value = [...products.value, ...res.data.items];
+      } else {
+        products.value = res.data.items;
+      }
       total.value = res.data.pagination.total;
     }
   } catch (e) {}
   loading.value = false;
+}
+
+function loadMore() {
+  page.value++;
+  loadProducts(true);
 }
 
 watch(() => route.query.category, (val) => {
@@ -515,11 +511,12 @@ watch(() => route.query.category, (val) => {
 
 onMounted(async () => {
   try {
-    const [catRes, companyRes] = await Promise.all([getCategories(), getCompanyInfo()]);
-    if (catRes.success) categories.value = catRes.data;
-    if (companyRes.success) company.value = companyRes.data || {};
+    await Promise.all([
+      getCategories().then(res => { if (res.success) categories.value = res.data; }),
+      getCompanyInfo().then(res => { if (res.success) company.value = res.data || {}; }),
+      loadProducts(),
+    ]);
   } catch (e) {}
-  await loadProducts();
 });
 </script>
 
@@ -953,48 +950,32 @@ onMounted(async () => {
   opacity: 0.4;
 }
 
-/* ==================== Pagination ==================== */
-.pagination {
+/* ==================== Load More ==================== */
+.load-more {
   display: flex;
-  justify-content: center;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+  gap: 16px;
   margin-top: 40px;
 }
 
-.page-btn {
-  width: 38px;
-  height: 38px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius);
-  background: white;
-  color: var(--gray-600);
+.load-more .btn-outline {
+  padding: 12px 36px;
+  border-radius: var(--radius-lg);
   font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: var(--transition);
-  font-family: inherit;
+  font-weight: 600;
+  gap: 8px;
 }
 
-.page-btn:hover:not(:disabled) {
-  border-color: var(--primary-light);
-  color: var(--primary-light);
-  background: var(--primary-50);
-}
-
-.page-btn.active {
-  background: var(--primary-light);
-  color: white;
-  border-color: var(--primary-light);
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
-}
-
-.page-btn:disabled {
-  opacity: 0.4;
+.load-more .btn-outline:disabled {
+  opacity: 0.6;
   cursor: not-allowed;
+}
+
+.load-more-info {
+  font-size: 13px;
+  color: var(--gray-400);
+  font-weight: 500;
 }
 
 /* ==================== Detail Modal ==================== */

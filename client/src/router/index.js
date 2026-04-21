@@ -32,6 +32,8 @@ const routes = [
       { path: 'suppliers', component: () => import('../views/admin/SuppliersPage.vue') },
       { path: 'quotations', component: () => import('../views/admin/QuotationsPage.vue') },
       { path: 'customers', component: () => import('../views/admin/CustomersPage.vue') },
+      { path: 'orders', component: () => import('../views/admin/OrdersPage.vue') },
+      { path: 'purchase-contracts', component: () => import('../views/admin/PurchaseContractsPage.vue') },
     ],
   },
 ];

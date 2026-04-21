@@ -33,18 +33,19 @@
             <th>{{ t('contactPhone') }}</th>
             <th>{{ t('carModels') }}</th>
             <th>{{ t('factoryCatalogs') }}</th>
+            <th>{{ t('supplierPriority') }}</th>
             <th>{{ t('createdAt') }}</th>
             <th>{{ t('actions') }}</th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="loading">
-            <td colspan="12" class="center-cell">
+            <td colspan="13" class="center-cell">
               <div class="spinner"></div>
             </td>
           </tr>
           <tr v-else-if="!suppliers.length">
-            <td colspan="12" class="center-cell empty">{{ t('noData') }}</td>
+            <td colspan="13" class="center-cell empty">{{ t('noData') }}</td>
           </tr>
           <tr v-for="s in suppliers" :key="s.id" :class="{ selected: selectedIds.includes(s.id) }">
             <td><input type="checkbox" :checked="selectedIds.includes(s.id)" @change="toggleSelect(s.id)" /></td>
@@ -62,6 +63,11 @@
               <button v-if="s.factory_catalogs && s.factory_catalogs !== '[]'" class="btn-link" @click="viewCatalogs(s)">
                 {{ JSON.parse(s.factory_catalogs || '[]').length }} {{ t('files') }}
               </button>
+            </td>
+            <td>
+              <span :class="['priority-badge', `priority-${s.priority || 'normal'}`]">
+                {{ t(`priority_${s.priority || 'normal'}`) }}
+              </span>
             </td>
             <td class="date-cell">{{ formatDate(s.created_at) }}</td>
             <td class="action-cell">
@@ -119,6 +125,14 @@
           <div class="form-group full">
             <label>{{ t('carModels') }}</label>
             <input v-model="form.car_models" :placeholder="t('carModelsPlaceholder')" />
+          </div>
+          <div class="form-group">
+            <label>{{ t('supplierPriority') }}</label>
+            <select v-model="form.priority">
+              <option value="high">{{ t('priority_high') }}</option>
+              <option value="normal">{{ t('priority_normal') }}</option>
+              <option value="backup">{{ t('priority_backup') }}</option>
+            </select>
           </div>
           <div class="form-group full">
             <label>{{ t('factoryCatalogs') }}</label>
@@ -183,8 +197,8 @@ const catalogFiles = ref([]);
 const pagination = ref({ total: 0, page: 1, limit: 50 });
 
 const form = ref({
-  name: '', bank_account_name: '', bank_card_number: '', bank_name: '',
-  contact_person: '', contact_phone: '', car_models: '', factory_catalogs: []
+      name: '', bank_account_name: '', bank_card_number: '', bank_name: '',
+  contact_person: '', contact_phone: '', car_models: '', factory_catalogs: [], priority: 'normal'
 });
 
 const totalPages = computed(() => Math.ceil(pagination.value.total / pagination.value.limit));
@@ -229,12 +243,13 @@ function openForm(row) {
       contact_person: row.contact_person || '',
       contact_phone: row.contact_phone || '',
       car_models: row.car_models || '',
-      factory_catalogs: []
+      factory_catalogs: [],
+      priority: row.priority || 'normal'
     };
     try { form.value.factory_catalogs = JSON.parse(row.factory_catalogs || '[]'); } catch { form.value.factory_catalogs = []; }
   } else {
     editing.value = null;
-    form.value = { name: '', bank_account_name: '', bank_card_number: '', bank_name: '', contact_person: '', contact_phone: '', car_models: '', factory_catalogs: [] };
+    form.value = { name: '', bank_account_name: '', bank_card_number: '', bank_name: '', contact_person: '', contact_phone: '', car_models: '', factory_catalogs: [], priority: 'normal' };
   }
   showForm.value = true;
 }
@@ -344,6 +359,10 @@ tr:hover { background: var(--gray-50); }
 .name-cell { font-weight: 600; color: var(--gray-900); max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
 .mono { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; }
 .tag { display: inline-block; padding: 2px 8px; background: #f0fdf4; color: #16a34a; border-radius: 12px; font-size: 11px; font-weight: 500; }
+.priority-badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; min-width: 32px; text-align: center; }
+.priority-high { background: #dcfce7; color: #16a34a; }
+.priority-normal { background: #dbeafe; color: #2563eb; }
+.priority-backup { background: var(--gray-100); color: var(--gray-500); }
 .date-cell { color: var(--gray-400); font-size: 12px; }
 
 .action-cell { display: flex; gap: 4px; }
@@ -398,6 +417,11 @@ tr:hover { background: var(--gray-50); }
   font-size: 13px; transition: border-color 0.2s;
 }
 .form-group input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
+.form-group select {
+  padding: 9px 12px; border: 1.5px solid var(--gray-200); border-radius: 8px;
+  font-size: 13px; transition: border-color 0.2s; background: white; cursor: pointer;
+}
+.form-group select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
 
 .upload-area {
   border: 2px dashed var(--gray-200); border-radius: 10px; padding: 20px;

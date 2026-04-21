@@ -41,10 +41,15 @@
       <p>{{ t('inquiryNoData') }}</p>
     </div>
     <div v-else class="inquiry-list">
-      <div v-for="inq in inquiries" :key="inq.id" class="inquiry-card">
+      <div v-for="inq in inquiries" :key="inq.display_id" class="inquiry-card">
         <div class="inq-header">
           <div class="inq-header-left">
             <span :class="['status-badge', `status-${inq.status}`]">{{ statusLabel(inq.status) }}</span>
+            <!-- 批量询盘标签 -->
+            <span v-if="inq.is_grouped" class="group-badge">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+              {{ inq.item_count }} {{ t('inquiryItemCount') }}
+            </span>
             <span class="inq-date">{{ formatTime(inq.created_at) }}</span>
           </div>
           <div class="inq-header-right">
@@ -77,11 +82,36 @@
                 <span class="info-label">{{ t('inquiryPhone') }}</span>
                 <span class="info-value">{{ inq.customer_phone }}</span>
               </div>
+              <div v-if="inq.customer_company" class="info-item">
+                <span class="info-label">{{ t('inquiryCompany') }}</span>
+                <span class="info-value">{{ inq.customer_company }}</span>
+              </div>
             </div>
           </div>
 
-          <!-- 产品信息 -->
-          <div v-if="inq.product_name || inq.oe_number" class="inq-section">
+          <!-- 产品信息 - 分组询盘：展示产品明细表 -->
+          <div v-if="inq.is_grouped && inq.inquiry_items" class="inq-section">
+            <div class="inq-section-title">{{ t('inquiryProduct') }} ({{ inq.item_count }})</div>
+            <div class="inq-items-table">
+              <div class="inq-items-header">
+                <span class="inq-items-col inq-items-col-idx">#</span>
+                <span class="inq-items-col inq-items-col-name">{{ t('inquiryProduct') }}</span>
+                <span class="inq-items-col inq-items-col-oe">OE</span>
+                <span class="inq-items-col inq-items-col-cat">{{ t('categories') }}</span>
+                <span class="inq-items-col inq-items-col-qty">{{ t('inquiryQuantity') }}</span>
+              </div>
+              <div v-for="(item, idx) in inq.inquiry_items" :key="idx" class="inq-items-row">
+                <span class="inq-items-col inq-items-col-idx">{{ idx + 1 }}</span>
+                <span class="inq-items-col inq-items-col-name">{{ item.product_name }}</span>
+                <span class="inq-items-col inq-items-col-oe">{{ item.oe_number || '-' }}</span>
+                <span class="inq-items-col inq-items-col-cat">{{ item.category_name || '-' }}</span>
+                <span class="inq-items-col inq-items-col-qty inq-qty-badge">{{ item.quantity }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 产品信息 - 单品询盘 -->
+          <div v-if="!inq.is_grouped && (inq.product_name || inq.oe_number)" class="inq-section">
             <div class="inq-section-title">{{ t('inquiryProduct') }}</div>
             <div class="inq-info-grid">
               <div v-if="inq.product_name" class="info-item">
@@ -95,6 +125,10 @@
               <div v-if="inq.category_name" class="info-item">
                 <span class="info-label">{{ t('categories') }}</span>
                 <span class="info-value">{{ inq.category_name }}</span>
+              </div>
+              <div v-if="inq.quantity" class="info-item">
+                <span class="info-label">{{ t('inquiryQuantity') }}</span>
+                <span class="info-value inq-qty-badge">{{ inq.quantity }}</span>
               </div>
             </div>
           </div>
@@ -130,7 +164,7 @@
         <button class="page-btn" :disabled="currentPage <= 1" @click="currentPage--; loadInquiries()">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
         </button>
-        <button v-for="n in visiblePages" :key="n" :class="['page-btn', { active: n === currentPage }]" @click="currentPage = n; loadInquiries()">{{ n }}</button>
+        <button v-for="n in visiblePages" :key="n" :class="['page-btn', { active: n === currentPage }]">{{ n }}</button>
         <button class="page-btn" :disabled="currentPage >= pagination.totalPages" @click="currentPage++; loadInquiries()">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
@@ -186,7 +220,6 @@ async function loadInquiries() {
     if (res.success) {
       inquiries.value = res.data.items;
       pagination.value = res.data.pagination;
-      // 更新统计
       Object.assign(stats, { all: 0, new: 0, read: 0, replied: 0, closed: 0 });
       stats.all = res.data.pagination.total;
       for (const [k, v] of Object.entries(res.data.stats)) { stats[k] = v; }
@@ -197,8 +230,6 @@ async function loadInquiries() {
 
 async function changeStatus(id, status) {
   await updateInquiryStatus(id, status);
-  const item = inquiries.value.find(i => i.id === id);
-  if (item) item.status = status;
   await loadInquiries();
 }
 
@@ -245,6 +276,13 @@ onMounted(() => loadInquiries());
 .inq-header-right { display: flex; align-items: center; gap: 8px; }
 .inq-date { font-size: 12px; color: var(--gray-400); }
 
+.group-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 10px; border-radius: var(--radius-full);
+  font-size: 11px; font-weight: 600;
+  background: #eff6ff; color: #3b82f6;
+}
+
 .status-badge { display: inline-flex; padding: 3px 10px; border-radius: var(--radius-full); font-size: 11px; font-weight: 600; }
 .status-new { background: #dbeafe; color: #1d4ed8; }
 .status-read { background: #f3f4f6; color: #4b5563; }
@@ -270,6 +308,43 @@ onMounted(() => loadInquiries());
 .info-link { color: var(--primary-light); text-decoration: none; }
 .info-link:hover { text-decoration: underline; }
 
+/* 数量徽章 */
+.inq-qty-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: #eff6ff; color: var(--primary-light);
+  padding: 2px 10px; border-radius: var(--radius-full);
+  font-size: 13px; font-weight: 700; min-width: 28px;
+}
+
+/* 产品明细表 */
+.inq-items-table {
+  border: 1px solid var(--gray-100);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.inq-items-header {
+  display: flex; align-items: center;
+  padding: 8px 14px;
+  background: var(--gray-50);
+  font-size: 11px; font-weight: 700; color: var(--gray-500);
+  text-transform: uppercase; letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--gray-100);
+}
+.inq-items-row {
+  display: flex; align-items: center;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--gray-50);
+  font-size: 13px; color: var(--gray-800);
+}
+.inq-items-row:last-child { border-bottom: none; }
+.inq-items-row:hover { background: var(--gray-50); }
+.inq-items-col { display: flex; align-items: center; }
+.inq-items-col-idx { width: 30px; color: var(--gray-400); font-weight: 500; flex-shrink: 0; }
+.inq-items-col-name { flex: 1; min-width: 0; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 12px; }
+.inq-items-col-oe { width: 130px; flex-shrink: 0; color: var(--gray-500); }
+.inq-items-col-cat { width: 120px; flex-shrink: 0; color: var(--gray-500); }
+.inq-items-col-qty { width: 70px; flex-shrink: 0; justify-content: center; }
+
 .inq-message { font-size: 14px; color: var(--gray-700); line-height: 1.7; white-space: pre-wrap; background: var(--gray-50); padding: 12px 16px; border-radius: var(--radius); }
 
 .inq-reply-section { background: #f0fdf4; border-radius: var(--radius); padding: 12px 16px; }
@@ -289,9 +364,10 @@ onMounted(() => loadInquiries());
 .loading-spinner { width: 32px; height: 32px; border: 3px solid var(--gray-200); border-top-color: var(--primary-light); border-radius: 50%; animation: spin 0.7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-@media (max-width: 640px) {
+@media (max-width: 768px) {
   .inq-header { flex-direction: column; align-items: flex-start; }
   .inq-info-grid { flex-direction: column; gap: 10px; }
   .inq-reply-box { flex-direction: column; }
+  .inq-items-col-oe, .inq-items-col-cat { display: none; }
 }
 </style>
