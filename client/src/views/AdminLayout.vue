@@ -305,7 +305,8 @@ onUnmounted(() => {
 
 /* Nav */
 .sidebar-nav {
-  flex: 1;
+  flex: 1 1 0;
+  min-height: 0;
   padding: 16px 12px;
   display: flex;
   flex-direction: column;
@@ -383,11 +384,14 @@ onUnmounted(() => {
 
 /* Footer */
 .sidebar-footer {
+  flex-shrink: 0;
   padding: 12px;
   border-top: 1px solid rgba(255,255,255,0.08);
   display: flex;
   flex-direction: column;
   gap: 2px;
+  max-height: 50%;
+  overflow-y: auto;
 }
 
 .logout-btn:hover {
