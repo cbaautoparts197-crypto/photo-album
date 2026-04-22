@@ -34,6 +34,9 @@ app.use('/api/purchase-contracts', require('./routes/purchase_contracts'));
 // SEO: sitemap
 app.use('/api/sitemap', require('./routes/sitemap'));
 
+// SEO/GEO: 国际推广中心
+app.use('/api/seo-geo', require('./routes/seo_geo'));
+
 // 健康检查
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

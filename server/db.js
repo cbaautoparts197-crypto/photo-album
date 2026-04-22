@@ -359,6 +359,92 @@ async function initDatabase() {
     // 迁移：quotations 表添加 order_id 字段
     try { await db.execute(`ALTER TABLE quotations ADD COLUMN order_id INTEGER REFERENCES orders(id) ON DELETE SET NULL`); } catch(e) {}
 
+    // ==================== SEO/GEO 国际推广中心 ====================
+    // 全局 SEO 配置（DeepSeek API Key 等）
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS seo_settings (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        deepseek_api_key TEXT DEFAULT '',
+        deepseek_base_url TEXT DEFAULT 'https://api.deepseek.com',
+        deepseek_model TEXT DEFAULT 'deepseek-chat',
+        default_language TEXT DEFAULT 'en',
+        updated_at DATETIME DEFAULT (datetime('now', 'localtime'))
+      )
+    `);
+    await db.execute(`INSERT OR IGNORE INTO seo_settings (id) VALUES (1)`);
+
+    // 目标市场
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS seo_target_markets (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        country_code TEXT NOT NULL,
+        country_name TEXT NOT NULL,
+        language TEXT NOT NULL DEFAULT 'en',
+        status TEXT DEFAULT 'active',
+        start_date TEXT DEFAULT '',
+        end_date TEXT DEFAULT '',
+        budget_monthly REAL DEFAULT 0,
+        currency TEXT DEFAULT 'USD',
+        notes TEXT DEFAULT '',
+        created_at DATETIME DEFAULT (datetime('now', 'localtime')),
+        updated_at DATETIME DEFAULT (datetime('now', 'localtime'))
+      )
+    `);
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_seo_markets_status ON seo_target_markets(status)`);
+
+    // 目标关键词
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS seo_keywords (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        market_id INTEGER NOT NULL REFERENCES seo_target_markets(id) ON DELETE CASCADE,
+        keyword TEXT NOT NULL,
+        search_intent TEXT DEFAULT 'informational',
+        priority TEXT DEFAULT 'medium',
+        current_rank TEXT DEFAULT '',
+        target_rank TEXT DEFAULT 'top10',
+        notes TEXT DEFAULT '',
+        created_at DATETIME DEFAULT (datetime('now', 'localtime'))
+      )
+    `);
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_seo_keywords_market ON seo_keywords(market_id)`);
+
+    // SEO 任务
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS seo_tasks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        market_id INTEGER REFERENCES seo_target_markets(id) ON DELETE SET NULL,
+        title TEXT NOT NULL,
+        description TEXT DEFAULT '',
+        task_type TEXT DEFAULT 'optimization',
+        status TEXT DEFAULT 'pending',
+        priority TEXT DEFAULT 'medium',
+        due_date TEXT DEFAULT '',
+        completed_at DATETIME,
+        created_at DATETIME DEFAULT (datetime('now', 'localtime')),
+        updated_at DATETIME DEFAULT (datetime('now', 'localtime'))
+      )
+    `);
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_seo_tasks_market ON seo_tasks(market_id)`);
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_seo_tasks_status ON seo_tasks(status)`);
+
+    // AI 内容生成日志
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS seo_content_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        market_id INTEGER REFERENCES seo_target_markets(id) ON DELETE SET NULL,
+        content_type TEXT NOT NULL,
+        target_url TEXT DEFAULT '',
+        title TEXT DEFAULT '',
+        content TEXT DEFAULT '',
+        language TEXT DEFAULT 'en',
+        model TEXT DEFAULT '',
+        prompt_summary TEXT DEFAULT '',
+        created_at DATETIME DEFAULT (datetime('now', 'localtime'))
+      )
+    `);
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_seo_content_market ON seo_content_log(market_id)`);
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_seo_content_type ON seo_content_log(content_type)`);
+
     console.log('  Database tables initialized successfully');
   } catch (err) {
     console.error('  Database initialization failed:', err.message);

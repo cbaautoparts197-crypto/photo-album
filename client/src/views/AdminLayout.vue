@@ -57,6 +57,12 @@
           </span>
           <span v-if="!sidebarCollapsed" class="nav-label">{{ t('storageSettings') }}</span>
         </router-link>
+        <router-link to="/admin/seo-geo" class="nav-item" :class="{ active: $route.path === '/admin/seo-geo' }">
+          <span class="nav-icon-wrap">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+          </span>
+          <span v-if="!sidebarCollapsed" class="nav-label">{{ t('seoGeoCenter') }}</span>
+        </router-link>
         <div v-if="!sidebarCollapsed" class="nav-section-label">Business</div>
         <router-link to="/admin/prices" class="nav-item" :class="{ active: $route.path === '/admin/prices' }">
           <span class="nav-icon-wrap">
@@ -193,6 +199,7 @@ const pageTitles = {
   '/admin/news': 'newsManagement',
   '/admin/suppliers': 'supplierManagement',
   '/admin/customers': 'customerManagement',
+  '/admin/seo-geo': 'seoGeoCenter',
 };
 
 const currentPageTitle = computed(() => {

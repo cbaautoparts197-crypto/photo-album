@@ -146,3 +146,27 @@ export const batchDeletePurchaseContracts = (ids) => api.post('/purchase-contrac
 
 // ==================== 询盘转报价 ====================
 export const inquiryToQuotation = (id) => api.post(`/inquiries/${id}/to-quotation`);
+
+// ==================== 国际 SEO/GEO 中心 ====================
+export const getSeoSettings = () => api.get('/seo-geo/settings');
+export const updateSeoSettings = (data) => api.put('/seo-geo/settings', data);
+export const getSeoMarkets = (params) => api.get('/seo-geo/markets', { params });
+export const getSeoMarketById = (id) => api.get(`/seo-geo/markets/${id}`);
+export const createSeoMarket = (data) => api.post('/seo-geo/markets', data);
+export const updateSeoMarket = (id, data) => api.put(`/seo-geo/markets/${id}`, data);
+export const deleteSeoMarket = (id) => api.delete(`/seo-geo/markets/${id}`);
+export const getSeoKeywords = (params) => api.get('/seo-geo/keywords', { params });
+export const createSeoKeyword = (data) => api.post('/seo-geo/keywords', data);
+export const batchCreateSeoKeywords = (data) => api.post('/seo-geo/keywords/batch', data);
+export const updateSeoKeyword = (id, data) => api.put(`/seo-geo/keywords/${id}`, data);
+export const deleteSeoKeyword = (id) => api.delete(`/seo-geo/keywords/${id}`);
+export const batchDeleteSeoKeywords = (ids) => api.post('/seo-geo/keywords/batch-delete', { ids });
+export const getSeoTasks = (params) => api.get('/seo-geo/tasks', { params });
+export const createSeoTask = (data) => api.post('/seo-geo/tasks', data);
+export const updateSeoTask = (id, data) => api.put(`/seo-geo/tasks/${id}`, data);
+export const deleteSeoTask = (id) => api.delete(`/seo-geo/tasks/${id}`);
+export const generateSeoContent = (data) => api.post('/seo-geo/ai/generate', data);
+export const getSeoContentLog = (params) => api.get('/seo-geo/content-log', { params });
+export const deleteSeoContentLog = (id) => api.delete(`/seo-geo/content-log/${id}`);
+export const getSeoCountries = () => api.get('/seo-geo/countries');
+export const getSeoStats = () => api.get('/seo-geo/stats');

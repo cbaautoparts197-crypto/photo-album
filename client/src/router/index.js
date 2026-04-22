@@ -34,6 +34,7 @@ const routes = [
       { path: 'customers', component: () => import('../views/admin/CustomersPage.vue') },
       { path: 'orders', component: () => import('../views/admin/OrdersPage.vue') },
       { path: 'purchase-contracts', component: () => import('../views/admin/PurchaseContractsPage.vue') },
+      { path: 'seo-geo', component: () => import('../views/admin/SeoGeoPage.vue') },
     ],
   },
 ];
