@@ -45,6 +45,11 @@
       </button>
     </div>
 
+    <!-- Toast 通知 -->
+    <Teleport to="body">
+      <div v-if="toast.show" class="toast" :class="'toast-' + toast.type">{{ toast.message }}</div>
+    </Teleport>
+
     <!-- ==================== 目标市场 ==================== -->
     <div v-if="activeTab === 'markets'" class="tab-content">
       <div class="section-toolbar">
@@ -401,7 +406,7 @@
           </div>
           <div class="modal-footer">
             <button class="btn" @click="marketFormVisible = false">{{ t('cancel') }}</button>
-            <button class="btn btn-primary" @click="saveMarket">{{ t('save') }}</button>
+            <button class="btn btn-primary" @click="saveMarket" :disabled="marketSaving">{{ marketSaving ? '...' : t('save') }}</button>
           </div>
         </div>
       </div>
@@ -542,7 +547,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import {
   getSeoSettings, updateSeoSettings, getSeoMarkets, createSeoMarket, updateSeoMarket, deleteSeoMarket,
@@ -568,6 +573,16 @@ const taskMarketFilter = ref(null);
 const contentLog = ref([]);
 const aiGenerating = ref(false);
 const aiResult = ref(null);
+const toast = reactive({ show: false, message: '', type: 'success' });
+let toastTimer = null;
+
+function showToast(message, type = 'success') {
+  toast.message = message;
+  toast.type = type;
+  toast.show = true;
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { toast.show = false; }, 3000);
+}
 
 // 表单
 const settings = ref({ deepseek_api_key: '', deepseek_base_url: 'https://api.deepseek.com', deepseek_model: 'deepseek-chat', default_language: 'en' });
@@ -576,6 +591,7 @@ const settingsTesting = ref(false);
 const aiForm = ref({ content_type: 'meta_title', market_id: null, language: 'en', context: '', target_url: '' });
 
 const marketFormVisible = ref(false);
+const marketSaving = ref(false);
 const marketForm = ref({ country_code: '', country_name: '', language: 'en', status: 'active', start_date: '', end_date: '', budget_monthly: 0, currency: 'USD', notes: '' });
 
 const keywordFormVisible = ref(false);
@@ -667,6 +683,15 @@ function onCountryChange() {
 }
 
 async function saveMarket() {
+  if (!marketForm.value.country_code) {
+    showToast('请选择国家', 'error');
+    return;
+  }
+  if (!marketForm.value.country_name) {
+    showToast('国家名称不能为空', 'error');
+    return;
+  }
+  marketSaving.value = true;
   try {
     if (marketForm.value.id) {
       await updateSeoMarket(marketForm.value.id, marketForm.value);
@@ -674,9 +699,14 @@ async function saveMarket() {
       await createSeoMarket(marketForm.value);
     }
     marketFormVisible.value = false;
+    showToast(marketForm.value.id ? '更新成功' : '添加成功');
     await loadMarkets();
     await loadAll();
-  } catch (e) { alert(e.message || 'Error'); }
+  } catch (e) {
+    showToast(e.message || '保存失败', 'error');
+  } finally {
+    marketSaving.value = false;
+  }
 }
 
 async function handleDeleteMarket(market) {
@@ -685,7 +715,7 @@ async function handleDeleteMarket(market) {
     await deleteSeoMarket(market.id);
     await loadMarkets();
     await loadAll();
-  } catch (e) { alert(e.message); }
+  } catch (e) { showToast(e.message || '删除失败', 'error'); }
 }
 
 function getCountryFlag(code) {
@@ -711,6 +741,10 @@ function openKeywordForm(kw) {
 }
 
 async function saveKeyword() {
+  if (!keywordForm.value.keyword?.trim()) {
+    showToast('关键词不能为空', 'error');
+    return;
+  }
   try {
     if (keywordForm.value.id) {
       await updateSeoKeyword(keywordForm.value.id, keywordForm.value);
@@ -719,9 +753,10 @@ async function saveKeyword() {
       await createSeoKeyword(keywordForm.value);
     }
     keywordFormVisible.value = false;
+    showToast('保存成功');
     await loadKeywords();
     await loadMarkets();
-  } catch (e) { alert(e.message); }
+  } catch (e) { showToast(e.message || '保存失败', 'error'); }
 }
 
 async function handleDeleteKeyword(kw) {
@@ -729,7 +764,7 @@ async function handleDeleteKeyword(kw) {
   try {
     await deleteSeoKeyword(kw.id);
     await loadKeywords();
-  } catch (e) { alert(e.message); }
+  } catch (e) { showToast(e.message || '删除失败', 'error'); }
 }
 
 function toggleKeyword(id) {
@@ -756,15 +791,16 @@ async function saveBatchKeywords() {
     batchKeywordVisible.value = false;
     await loadKeywords();
     await loadMarkets();
-  } catch (e) { alert(e.message); }
+  } catch (e) { showToast(e.message || '保存失败', 'error'); }
 }
 
 async function handleBatchDeleteKeywords() {
   if (!confirm(`Delete ${selectedKeywords.value.length} keywords?`)) return;
   try {
     await batchDeleteSeoKeywords(selectedKeywords.value);
+    showToast('删除成功');
     await loadKeywords();
-  } catch (e) { alert(e.message); }
+  } catch (e) { showToast(e.message || '删除失败', 'error'); }
 }
 
 // ===== 任务操作 =====
@@ -793,28 +829,30 @@ async function saveTask() {
     }
     taskFormVisible.value = false;
     await loadTasks();
-  } catch (e) { alert(e.message); }
+  } catch (e) { showToast(e.message || '保存失败', 'error'); }
 }
 
 async function updateTaskStatus(id, status) {
   try {
     await updateSeoTask(id, { status });
+    showToast('状态已更新');
     await loadTasks();
-  } catch (e) { alert(e.message); }
+  } catch (e) { showToast(e.message || '更新失败', 'error'); }
 }
 
 async function handleDeleteTask(task) {
   if (!confirm('Delete this task?')) return;
   try {
     await deleteSeoTask(task.id);
+    showToast('删除成功');
     await loadTasks();
-  } catch (e) { alert(e.message); }
+  } catch (e) { showToast(e.message || '删除失败', 'error'); }
 }
 
 // ===== AI 内容生成 =====
 async function handleGenerate() {
   if (!aiForm.value.context.trim()) {
-    alert(t('contextRequired'));
+    showToast(t('contextRequired'), 'error');
     return;
   }
   aiGenerating.value = true;
@@ -824,7 +862,7 @@ async function handleGenerate() {
     aiResult.value = res.data;
     await loadContentLog();
   } catch (e) {
-    alert(e.message || 'Generation failed');
+    showToast(e.message || 'Generation failed', 'error');
   } finally {
     aiGenerating.value = false;
   }
@@ -840,7 +878,7 @@ function formatAiResult(content) {
 function copyResult() {
   if (aiResult.value?.content) {
     navigator.clipboard.writeText(aiResult.value.content);
-    alert(t('copied'));
+    showToast(t('copied'));
   }
 }
 
@@ -853,8 +891,8 @@ async function saveSettings() {
   settingsSaving.value = true;
   try {
     await updateSeoSettings(settings.value);
-    alert(t('success'));
-  } catch (e) { alert(e.message); }
+    showToast(t('success'));
+  } catch (e) { showToast(e.message || '保存失败', 'error'); }
   finally { settingsSaving.value = false; }
 }
 
@@ -870,7 +908,7 @@ async function testConnection() {
     aiResult.value = res.data;
     aiForm.value = { content_type: 'meta_title', market_id: null, language: 'en', context: 'RBS Auto Parts - Honda Civic bumper', target_url: '' };
     activeTab.value = 'ai';
-  } catch (e) { alert('Connection failed: ' + (e.message || 'Unknown error')); }
+  } catch (e) { showToast('Connection failed: ' + (e.message || 'Unknown error'), 'error'); }
   finally { settingsTesting.value = false; }
 }
 
@@ -1084,6 +1122,20 @@ onMounted(async () => {
 .empty-state { text-align: center; padding: 60px 20px; color: var(--gray-400); font-size: 15px; }
 .empty-state p { margin-bottom: 16px; }
 .empty-state-sm { text-align: center; padding: 24px; color: var(--gray-400); font-size: 13px; }
+
+/* Toast */
+.toast {
+  position: fixed; top: 24px; left: 50%; transform: translateX(-50%);
+  padding: 12px 24px; border-radius: 10px; font-size: 14px; font-weight: 500;
+  z-index: 9999; animation: toastIn 0.3s ease;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+}
+.toast-success { background: #10b981; color: white; }
+.toast-error { background: #ef4444; color: white; }
+@keyframes toastIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(-12px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
 
 /* Responsive */
 @media (max-width: 768px) {
