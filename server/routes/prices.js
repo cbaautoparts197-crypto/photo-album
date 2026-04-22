@@ -10,26 +10,33 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 *
 // GET /api/prices - 价格列表（支持分页、OE号搜索、供应商筛选）
 router.get('/', async (req, res) => {
   try {
-    const { oe_number, supplier, page = 1, limit = 50 } = req.query;
+    const { oe_number, supplier, supplier_id, page = 1, limit = 50 } = req.query;
     const offset = (Number(page) - 1) * Number(limit);
 
     let where = '1=1';
     const params = [];
 
     if (oe_number) {
-      where += ' AND oe_number LIKE ?';
+      where += ' AND sp.oe_number LIKE ?';
       params.push(`%${oe_number}%`);
     }
     if (supplier) {
-      where += ' AND supplier_name LIKE ?';
+      where += ' AND sp.supplier_name LIKE ?';
       params.push(`%${supplier}%`);
     }
+    if (supplier_id) {
+      where += ' AND sp.supplier_id = ?';
+      params.push(Number(supplier_id));
+    }
 
-    const countResult = await db.execute(`SELECT COUNT(*) as total FROM supplier_prices WHERE ${where}`, params);
+    const countResult = await db.execute(`SELECT COUNT(*) as total FROM supplier_prices sp WHERE ${where}`, params);
     const total = countResult.rows[0].total;
 
     const rowsResult = await db.execute(
-      `SELECT * FROM supplier_prices WHERE ${where} ORDER BY updated_at DESC LIMIT ? OFFSET ?`,
+      `SELECT sp.*, s.name as supplier_full_name, s.contact_person, s.contact_phone
+       FROM supplier_prices sp
+       LEFT JOIN suppliers s ON sp.supplier_id = s.id
+       WHERE ${where} ORDER BY sp.updated_at DESC LIMIT ? OFFSET ?`,
       [...params, Number(limit), offset]
     );
 
@@ -45,11 +52,17 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /api/prices/by-oe/:oe - 按 OE 号获取价格列表（前端不调用，仅后台用）
+// GET /api/prices/by-oe/:oe - 按 OE 号获取所有供应商价格（报价弹窗用）
 router.get('/by-oe/:oe', async (req, res) => {
   try {
     const result = await db.execute(
-      'SELECT * FROM supplier_prices WHERE oe_number LIKE ? ORDER BY unit_price ASC',
+      `SELECT sp.*, s.name as supplier_full_name, s.contact_person, s.contact_phone, s.priority as supplier_priority
+       FROM supplier_prices sp
+       LEFT JOIN suppliers s ON sp.supplier_id = s.id
+       WHERE sp.oe_number LIKE ?
+       ORDER BY
+         CASE s.priority WHEN 'high' THEN 1 WHEN 'normal' THEN 2 WHEN 'backup' THEN 3 ELSE 4 END,
+         sp.unit_price ASC`,
       [`%${req.params.oe}%`]
     );
     res.json({ success: true, data: result.rows });
@@ -81,14 +94,14 @@ router.get('/by-product-name', async (req, res) => {
 // POST /api/prices - 新增价格
 router.post('/', async (req, res) => {
   try {
-    const { oe_number, supplier_name, unit_price, currency, moq, lead_time, remark } = req.body;
+    const { oe_number, supplier_name, supplier_id, unit_price, currency, moq, lead_time, remark } = req.body;
     if (!oe_number || !supplier_name) {
       return res.status(400).json({ success: false, message: 'OE号和供应商名称不能为空' });
     }
     await db.execute(
-      `INSERT INTO supplier_prices (oe_number, supplier_name, unit_price, currency, moq, lead_time, remark)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [oe_number, supplier_name, unit_price || 0, currency || 'USD', moq || 1, lead_time || '', remark || '']
+      `INSERT INTO supplier_prices (oe_number, supplier_name, supplier_id, unit_price, currency, moq, lead_time, remark)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [oe_number, supplier_name, supplier_id || null, unit_price || 0, currency || 'USD', moq || 1, lead_time || '', remark || '']
     );
     const idResult = await db.execute('SELECT last_insert_rowid() as id');
     res.json({ success: true, id: idResult.rows[0].id, message: '价格添加成功' });
@@ -100,13 +113,14 @@ router.post('/', async (req, res) => {
 // PUT /api/prices/:id - 更新价格
 router.put('/:id', async (req, res) => {
   try {
-    const { oe_number, supplier_name, unit_price, currency, moq, lead_time, remark } = req.body;
+    const { oe_number, supplier_name, supplier_id, unit_price, currency, moq, lead_time, remark } = req.body;
     const id = req.params.id;
     const sets = [];
     const params = [];
 
     if (oe_number !== undefined) { sets.push('oe_number = ?'); params.push(String(oe_number)); }
     if (supplier_name !== undefined) { sets.push('supplier_name = ?'); params.push(String(supplier_name)); }
+    if (supplier_id !== undefined) { sets.push('supplier_id = ?'); params.push(supplier_id ? Number(supplier_id) : null); }
     if (unit_price !== undefined) { sets.push('unit_price = ?'); params.push(Number(unit_price)); }
     if (currency !== undefined) { sets.push('currency = ?'); params.push(String(currency)); }
     if (moq !== undefined) { sets.push('moq = ?'); params.push(Number(moq)); }
@@ -223,15 +237,24 @@ router.post('/import', upload.single('file'), async (req, res) => {
 
     if (rows.length === 0) return res.status(400).json({ success: false, message: '未解析到有效数据' });
 
+    // 预加载供应商名称 → ID 映射，供导入时自动关联
+    const supplierMap = {};
+    try {
+      const sRes = await db.execute('SELECT id, name FROM suppliers');
+      sRes.rows.forEach(s => { supplierMap[s.name.trim().toLowerCase()] = s.id; });
+    } catch (e) {}
+
     // 批量插入
     let success = 0;
     for (const r of rows) {
       if (!r.oe_number) continue;
+      // 根据 supplier_name 自动匹配 supplier_id
+      const sid = supplierMap[r.supplier_name.trim().toLowerCase()] || null;
       try {
         await db.execute(
-          `INSERT INTO supplier_prices (oe_number, supplier_name, unit_price, currency, moq, lead_time, remark)
-           VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          [r.oe_number, r.supplier_name, r.unit_price, r.currency, r.moq, r.lead_time, r.remark]
+          `INSERT INTO supplier_prices (oe_number, supplier_name, supplier_id, unit_price, currency, moq, lead_time, remark)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [r.oe_number, r.supplier_name, sid, r.unit_price, r.currency, r.moq, r.lead_time, r.remark]
         );
         success++;
       } catch (e) {}

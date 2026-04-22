@@ -87,7 +87,12 @@
           <tr v-for="item in quotations" :key="item.id" class="quotation-row" @click="openDetail(item)">
             <td @click.stop><input type="checkbox" :checked="selectedIds.includes(item.id)" @change="toggleSelect(item.id)" /></td>
             <td class="td-oe">
-              {{ item.oe_number }}
+              <div class="oe-row">
+                <span class="oe-text">{{ item.oe_number }}</span>
+                <button class="btn-oe-lookup" @click.stop="openSupplierModal(item.oe_number)" :title="t('lookupSuppliers')">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                </button>
+              </div>
               <div v-if="item.product_images && item.product_images.length" class="td-images">
                 <img v-for="(img, idx) in item.product_images.slice(0, 3)" :key="idx" :src="img.qiniu_url" class="td-thumb" @click.stop />
               </div>
@@ -154,7 +159,13 @@
               <div class="form-grid">
                 <div class="form-field">
                   <label>{{ t('oeNumber') }} *</label>
-                  <input v-model="form.oe_number" required placeholder="e.g. 12305-0P010" />
+                  <div class="oe-input-row">
+                    <input v-model="form.oe_number" required placeholder="e.g. 12305-0P010" />
+                    <button type="button" class="btn-oe-lookup-form" @click="openSupplierModal(form.oe_number)" :disabled="!form.oe_number" :title="t('lookupSuppliers')">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                      {{ t('lookupSuppliers') }}
+                    </button>
+                  </div>
                 </div>
                 <div class="form-field">
                   <label>{{ t('quotationQuantity') }}</label>
@@ -319,6 +330,76 @@
         </div>
       </Transition>
     </Teleport>
+
+    <!-- 供应商查询弹窗 -->
+    <Teleport to="body">
+      <Transition name="modal">
+        <div v-if="showSupplierModal" class="modal-overlay" @click.self="showSupplierModal = false">
+          <div class="form-modal supplier-lookup-modal">
+            <div class="form-modal-header">
+              <div>
+                <h3>{{ t('supplierLookup') }}</h3>
+                <span class="lookup-oe">OE: {{ lookupOe }}</span>
+              </div>
+              <button class="modal-close" @click="showSupplierModal = false">&times;</button>
+            </div>
+            <div class="form-body">
+              <div v-if="lookupLoading" class="lookup-loading">
+                <div class="lookup-spinner"></div>
+                <span>{{ t('loading') }}...</span>
+              </div>
+              <div v-else-if="lookupResults.length === 0" class="lookup-empty">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <p>{{ t('noSupplierFound') }}</p>
+              </div>
+              <div v-else>
+                <table class="supplier-lookup-table">
+                  <thead>
+                    <tr>
+                      <th>{{ t('supplierName') }}</th>
+                      <th>{{ t('oeNumber') }}</th>
+                      <th>{{ t('unitPrice') }}</th>
+                      <th>MOQ</th>
+                      <th>{{ t('leadTime') }}</th>
+                      <th>{{ t('contactPerson') }}</th>
+                      <th>{{ t('remark') }}</th>
+                      <th>{{ t('actions') }}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="row in lookupResults" :key="row.id" :class="{ 'row-cheapest': row._cheapest }">
+                      <td>
+                        <div class="lk-supplier-name">{{ row.supplier_full_name || row.supplier_name }}</div>
+                        <div v-if="row.supplier_priority" :class="['lk-priority', `priority-${row.supplier_priority}`]">
+                          {{ t(`priority_${row.supplier_priority}`) }}
+                        </div>
+                      </td>
+                      <td class="lk-oe">{{ row.oe_number }}</td>
+                      <td class="lk-price">
+                        <span v-if="row.unit_price > 0" class="price-val">{{ row.unit_price }} <small>{{ row.currency }}</small></span>
+                        <span v-else class="no-price">-</span>
+                      </td>
+                      <td>{{ row.moq || 1 }}</td>
+                      <td>{{ row.lead_time || '-' }}</td>
+                      <td>
+                        <div v-if="row.contact_person">{{ row.contact_person }}</div>
+                        <div v-if="row.contact_phone" class="lk-phone">{{ row.contact_phone }}</div>
+                      </td>
+                      <td class="lk-remark">{{ row.remark || '-' }}</td>
+                      <td>
+                        <button class="btn btn-sm btn-use-supplier" @click="applySupplier(row)" :title="t('useThisSupplier')">
+                          {{ t('use') }}
+                        </button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
@@ -327,7 +408,8 @@ import { ref, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import {
   getQuotations, createQuotation, updateQuotation, deleteQuotation,
-  batchDeleteQuotations, autoPriceQuotation, batchAutoPrice, importQuotations
+  batchDeleteQuotations, autoPriceQuotation, batchAutoPrice, importQuotations,
+  getPricesByOe, updateQuotation as patchQuotation
 } from '../../api/modules';
 
 const { t } = useI18n();
@@ -359,6 +441,14 @@ const showImport = ref(false);
 const importFile = ref(null);
 const importing = ref(false);
 const importResult = ref(null);
+
+// 供应商查询弹窗
+const showSupplierModal = ref(false);
+const lookupOe = ref('');
+const lookupResults = ref([]);
+const lookupLoading = ref(false);
+// 当前正在查询的报价行（用于"选用此供应商"回填）
+const lookupTargetItem = ref(null);
 
 const allSelected = computed(() => quotations.value.length > 0 && selectedIds.value.length === quotations.value.length);
 const visiblePages = computed(() => {
@@ -507,6 +597,51 @@ async function doImport() {
   importing.value = false;
 }
 
+// ==================== 供应商查询弹窗 ====================
+async function openSupplierModal(oeNumber, targetItem) {
+  lookupOe.value = oeNumber;
+  lookupTargetItem.value = targetItem || null;
+  showSupplierModal.value = true;
+  lookupLoading.value = true;
+  lookupResults.value = [];
+  try {
+    const res = await getPricesByOe(oeNumber);
+    if (res.success && res.data.length) {
+      // 标记最低价
+      const withPrice = res.data.filter(r => r.unit_price > 0);
+      const minPrice = withPrice.length ? Math.min(...withPrice.map(r => r.unit_price)) : null;
+      lookupResults.value = res.data.map(r => ({
+        ...r,
+        _cheapest: minPrice !== null && r.unit_price === minPrice
+      }));
+    }
+  } catch (e) {}
+  lookupLoading.value = false;
+}
+
+async function applySupplier(row) {
+  // 如果是从表格行点击的（有 lookupTargetItem），则直接更新那条报价的供应商和价格
+  if (lookupTargetItem.value) {
+    try {
+      await patchQuotation(lookupTargetItem.value.id, {
+        supplier_name: row.supplier_full_name || row.supplier_name,
+        unit_price: row.unit_price,
+        currency: row.currency,
+      });
+      await loadQuotations();
+    } catch (e) {}
+  }
+  // 无论如何，将供应商信息填入表单（如果表单在编辑状态）
+  if (showForm.value) {
+    form.value.supplier_name = row.supplier_full_name || row.supplier_name;
+    if (row.unit_price > 0) {
+      form.value.unit_price = row.unit_price;
+      form.value.currency = row.currency;
+    }
+  }
+  showSupplierModal.value = false;
+}
+
 onMounted(() => loadQuotations());
 </script>
 
@@ -628,11 +763,66 @@ onMounted(() => loadQuotations());
 .modal-enter-active, .modal-leave-active { transition: opacity 0.2s; }
 .modal-enter-from, .modal-leave-to { opacity: 0; }
 
+/* OE 号行 */
+.oe-row { display: flex; align-items: center; gap: 6px; }
+.oe-text { font-weight: 600; color: var(--primary-light); }
+.btn-oe-lookup {
+  width: 22px; height: 22px; border: none; border-radius: 50%; background: #eff6ff; color: #2563eb;
+  cursor: pointer; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  transition: var(--transition);
+}
+.btn-oe-lookup:hover { background: #2563eb; color: white; }
+
+/* 表单 OE 行 */
+.oe-input-row { display: flex; gap: 8px; align-items: center; }
+.oe-input-row input { flex: 1; }
+.btn-oe-lookup-form {
+  padding: 8px 12px; border: 1px solid #bfdbfe; border-radius: var(--radius); background: #eff6ff; color: #2563eb;
+  font-size: 12px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;
+  white-space: nowrap; transition: var(--transition); font-family: inherit;
+}
+.btn-oe-lookup-form:hover:not(:disabled) { background: #2563eb; color: white; border-color: #2563eb; }
+.btn-oe-lookup-form:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* 供应商查询弹窗 */
+.supplier-lookup-modal { max-width: 860px; }
+.lookup-oe { font-size: 13px; color: var(--gray-400); margin-top: 2px; display: block; }
+.lookup-loading { display: flex; align-items: center; gap: 12px; padding: 40px 0; justify-content: center; color: var(--gray-400); }
+.lookup-spinner { width: 24px; height: 24px; border: 3px solid var(--gray-200); border-top-color: #3b82f6; border-radius: 50%; animation: spin 0.6s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.lookup-empty { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 48px 0; color: var(--gray-400); }
+.lookup-empty p { font-size: 14px; }
+
+.supplier-lookup-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.supplier-lookup-table th { padding: 8px 12px; background: var(--gray-50); font-weight: 600; color: var(--gray-500); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 1px solid var(--gray-200); text-align: left; white-space: nowrap; }
+.supplier-lookup-table td { padding: 10px 12px; border-bottom: 1px solid var(--gray-100); vertical-align: top; }
+.supplier-lookup-table tr.row-cheapest td { background: #f0fdf4; }
+.supplier-lookup-table tr:hover td { background: #f8fafc; }
+.supplier-lookup-table tr.row-cheapest:hover td { background: #dcfce7; }
+
+.lk-supplier-name { font-weight: 600; color: var(--gray-800); }
+.lk-priority { display: inline-block; margin-top: 3px; padding: 1px 7px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+.priority-high { background: #dcfce7; color: #16a34a; }
+.priority-normal { background: #dbeafe; color: #2563eb; }
+.priority-backup { background: var(--gray-100); color: var(--gray-500); }
+.lk-oe { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; color: var(--primary-light); white-space: nowrap; }
+.lk-price .price-val { font-weight: 700; color: #16a34a; font-size: 14px; }
+.lk-price .price-val small { font-size: 11px; color: var(--gray-400); font-weight: 400; }
+.lk-phone { font-size: 12px; color: var(--gray-400); margin-top: 2px; }
+.lk-remark { max-width: 120px; font-size: 12px; color: var(--gray-500); white-space: normal; word-break: break-word; }
+.btn-use-supplier {
+  padding: 5px 12px; background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe;
+  border-radius: var(--radius); font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; font-family: inherit;
+  transition: var(--transition);
+}
+.btn-use-supplier:hover { background: #2563eb; color: white; border-color: #2563eb; }
+
 @media (max-width: 640px) {
   .form-grid, .detail-grid { grid-template-columns: 1fr; }
   .filter-search { min-width: 150px; }
   .stats-bar { gap: 8px; }
   .stat-card { min-width: 70px; padding: 10px 12px; }
   .stat-num { font-size: 20px; }
+  .oe-input-row { flex-direction: column; align-items: stretch; }
 }
 </style>

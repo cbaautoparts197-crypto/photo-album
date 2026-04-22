@@ -58,6 +58,8 @@ export const login = (password) => api.post('/auth/login', { password });
 export const getPrices = (params) => api.get('/prices', { params });
 export const getPricesByOe = (oe) => api.get(`/prices/by-oe/${encodeURIComponent(oe)}`);
 export const getPricesByProductName = (productName) => api.get('/prices/by-product-name', { params: { productName } });
+// 按供应商ID查询其所有价格记录
+export const getPricesBySupplierId = (supplierId, params) => api.get('/prices', { params: { ...params, supplier_id: supplierId } });
 export const createPrice = (data) => api.post('/prices', data);
 export const updatePrice = (id, data) => api.put(`/prices/${id}`, data);
 export const deletePrice = (id) => api.delete(`/prices/${id}`);

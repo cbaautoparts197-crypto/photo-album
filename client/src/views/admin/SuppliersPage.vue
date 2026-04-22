@@ -71,6 +71,9 @@
             </td>
             <td class="date-cell">{{ formatDate(s.created_at) }}</td>
             <td class="action-cell">
+              <button class="btn-icon btn-icon-products" :title="t('viewSupplierProducts')" @click="openProductsModal(s)">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg>
+              </button>
               <button class="btn-icon" :title="t('edit')" @click="openForm(s)">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
               </button>
@@ -174,13 +177,56 @@
         </div>
       </div>
     </div>
+
+    <!-- Supplier Products Modal -->
+    <div v-if="showProductsModal" class="modal-overlay" @click.self="showProductsModal = false">
+      <div class="modal-content products-modal">
+        <div class="modal-header">
+          <div>
+            <h2>{{ t('viewSupplierProducts') }}</h2>
+            <p class="modal-subtitle">{{ activeSupplierName }}</p>
+          </div>
+          <button class="modal-close" @click="showProductsModal = false">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div v-if="productsLoading" class="center-cell"><div class="spinner"></div></div>
+          <div v-else-if="supplierProducts.length === 0" class="center-cell empty">{{ t('noData') }}</div>
+          <div v-else>
+            <div class="products-count">{{ t('total') }}: {{ supplierProducts.length }} {{ t('priceRecords') }}</div>
+            <table class="sp-table">
+              <thead>
+                <tr>
+                  <th>{{ t('oeNumber') }}</th>
+                  <th>{{ t('unitPrice') }}</th>
+                  <th>MOQ</th>
+                  <th>{{ t('leadTime') }}</th>
+                  <th>{{ t('remark') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="p in supplierProducts" :key="p.id">
+                  <td class="sp-oe">{{ p.oe_number }}</td>
+                  <td class="sp-price">
+                    <span v-if="p.unit_price > 0" class="price-val">{{ p.unit_price }} <small>{{ p.currency }}</small></span>
+                    <span v-else class="no-price">-</span>
+                  </td>
+                  <td>{{ p.moq || 1 }}</td>
+                  <td>{{ p.lead_time || '-' }}</td>
+                  <td class="sp-remark">{{ p.remark || '-' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { getSuppliers, createSupplier, updateSupplier, deleteSupplier, batchDeleteSuppliers } from '../../api/modules';
+import { getSuppliers, createSupplier, updateSupplier, deleteSupplier, batchDeleteSuppliers, getPricesBySupplierId } from '../../api/modules';
 
 const { t } = useI18n();
 
@@ -193,6 +239,12 @@ const showForm = ref(false);
 const showCatalogs = ref(false);
 const editing = ref(null);
 const catalogFiles = ref([]);
+
+// 供应商产品弹窗
+const showProductsModal = ref(false);
+const productsLoading = ref(false);
+const supplierProducts = ref([]);
+const activeSupplierName = ref('');
 
 const pagination = ref({ total: 0, page: 1, limit: 50 });
 
@@ -301,6 +353,18 @@ function removeCatalog(i) {
 function viewCatalogs(row) {
   try { catalogFiles.value = JSON.parse(row.factory_catalogs || '[]'); } catch { catalogFiles.value = []; }
   showCatalogs.value = true;
+}
+
+async function openProductsModal(row) {
+  activeSupplierName.value = row.name;
+  showProductsModal.value = true;
+  productsLoading.value = true;
+  supplierProducts.value = [];
+  try {
+    const res = await getPricesBySupplierId(row.id, { limit: 500 });
+    if (res.success) supplierProducts.value = res.data.items || [];
+  } catch (e) {}
+  productsLoading.value = false;
 }
 
 function formatDate(d) {
@@ -440,6 +504,22 @@ tr:hover { background: var(--gray-50); }
 
 .catalog-item { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--gray-100); }
 .catalog-name { font-size: 13px; color: var(--gray-700); }
+
+.btn-icon-products:hover { background: #f0fdf4; color: #16a34a; }
+
+/* Products Modal */
+.products-modal { max-width: 700px; }
+.modal-subtitle { font-size: 13px; color: var(--gray-400); margin-top: 2px; }
+.products-count { font-size: 13px; color: var(--gray-400); margin-bottom: 12px; }
+.sp-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.sp-table th { padding: 8px 12px; background: var(--gray-50); font-weight: 600; color: var(--gray-500); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 1px solid var(--gray-200); text-align: left; white-space: nowrap; }
+.sp-table td { padding: 9px 12px; border-bottom: 1px solid var(--gray-100); }
+.sp-table tr:hover td { background: var(--gray-50); }
+.sp-oe { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; color: var(--primary, #3b82f6); font-weight: 600; }
+.sp-price .price-val { font-weight: 700; color: #16a34a; }
+.sp-price .price-val small { font-size: 11px; color: var(--gray-400); font-weight: 400; }
+.no-price { color: var(--gray-300); }
+.sp-remark { font-size: 12px; color: var(--gray-500); max-width: 140px; white-space: normal; word-break: break-word; }
 
 @media (max-width: 768px) {
   .page-header { flex-direction: column; align-items: stretch; }

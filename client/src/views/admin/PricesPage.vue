@@ -53,7 +53,10 @@
           <tr v-for="item in prices" :key="item.id">
             <td><input type="checkbox" :checked="selectedIds.includes(item.id)" @change="toggleSelect(item.id)" /></td>
             <td class="td-oe">{{ item.oe_number }}</td>
-            <td>{{ item.supplier_name }}</td>
+            <td>
+              <span v-if="item.supplier_full_name" class="supplier-linked">{{ item.supplier_full_name }}</span>
+              <span v-else>{{ item.supplier_name }}</span>
+            </td>
             <td class="td-price">{{ item.unit_price }}</td>
             <td>{{ item.currency }}</td>
             <td>{{ item.moq }}</td>
@@ -105,6 +108,10 @@
                 </div>
                 <div class="form-field">
                   <label>{{ t('supplierName') }} *</label>
+                  <select v-if="supplierOptions.length" v-model="form.supplier_id" @change="onSupplierSelect" class="supplier-select">
+                    <option :value="null">— {{ t('selectSupplier') }} —</option>
+                    <option v-for="s in supplierOptions" :key="s.id" :value="s.id">{{ s.name }}</option>
+                  </select>
                   <input v-model="form.supplier_name" required :placeholder="t('supplierName')" />
                 </div>
                 <div class="form-field">
@@ -182,7 +189,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { getPrices, createPrice, updatePrice, deletePrice, batchDeletePrices, importPrices } from '../../api/modules';
+import { getPrices, createPrice, updatePrice, deletePrice, batchDeletePrices, importPrices, getSuppliers } from '../../api/modules';
 
 const { t } = useI18n();
 
@@ -194,10 +201,13 @@ const selectedIds = ref([]);
 
 const filters = ref({ oe_number: '', supplier: '' });
 
+// 供应商下拉数据
+const supplierOptions = ref([]);
+
 // 表单
 const showForm = ref(false);
 const editingId = ref(null);
-const form = ref({ oe_number: '', supplier_name: '', unit_price: 0, currency: 'USD', moq: 1, lead_time: '', remark: '' });
+const form = ref({ oe_number: '', supplier_name: '', supplier_id: null, unit_price: 0, currency: 'USD', moq: 1, lead_time: '', remark: '' });
 
 // 导入
 const showImport = ref(false);
@@ -242,10 +252,15 @@ async function loadPrices() {
 function openForm(item) {
   if (item) {
     editingId.value = item.id;
-    form.value = { oe_number: item.oe_number, supplier_name: item.supplier_name, unit_price: item.unit_price, currency: item.currency, moq: item.moq, lead_time: item.lead_time || '', remark: item.remark || '' };
+    form.value = {
+      oe_number: item.oe_number, supplier_name: item.supplier_name,
+      supplier_id: item.supplier_id || null,
+      unit_price: item.unit_price, currency: item.currency,
+      moq: item.moq, lead_time: item.lead_time || '', remark: item.remark || ''
+    };
   } else {
     editingId.value = null;
-    form.value = { oe_number: '', supplier_name: '', unit_price: 0, currency: 'USD', moq: 1, lead_time: '', remark: '' };
+    form.value = { oe_number: '', supplier_name: '', supplier_id: null, unit_price: 0, currency: 'USD', moq: 1, lead_time: '', remark: '' };
   }
   showForm.value = true;
 }
@@ -276,6 +291,15 @@ async function batchDelete() {
   await loadPrices();
 }
 
+// 选中供应商时自动填充供应商名称
+function onSupplierSelect() {
+  const sid = form.value.supplier_id;
+  if (sid) {
+    const found = supplierOptions.value.find(s => s.id === sid);
+    if (found) form.value.supplier_name = found.name;
+  }
+}
+
 function onFileChange(e) {
   importFile.value = e.target.files[0] || null;
   importResult.value = null;
@@ -300,7 +324,14 @@ async function doImport() {
   importing.value = false;
 }
 
-onMounted(() => loadPrices());
+onMounted(async () => {
+  loadPrices();
+  // 加载供应商列表用于下拉
+  try {
+    const res = await getSuppliers({ limit: 500 });
+    if (res.success) supplierOptions.value = res.data;
+  } catch (e) {}
+});
 </script>
 
 <style scoped>
@@ -358,6 +389,14 @@ onMounted(() => loadPrices());
 .import-filename { font-size: 13px; color: var(--gray-600); font-weight: 500; }
 .import-result { margin-top: 12px; padding: 10px 14px; border-radius: var(--radius); font-size: 13px; font-weight: 500; background: #fef2f2; color: #dc2626; }
 .import-result-success { background: #f0fdf4; color: #16a34a; }
+
+/* 供应商已关联标识 */
+.supplier-linked { color: #16a34a; font-weight: 600; }
+.supplier-linked::before { content: '✓ '; font-size: 11px; }
+
+/* 供应商下拉 */
+.supplier-select { padding: 9px 12px; border: 1px solid var(--border-light); border-radius: var(--radius); font-size: 14px; font-family: inherit; color: var(--gray-800); margin-bottom: 6px; }
+.supplier-select:focus { outline: none; border-color: var(--primary-light); box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
 
 .modal-enter-active, .modal-leave-active { transition: opacity 0.2s; }
 .modal-enter-from, .modal-leave-to { opacity: 0; }

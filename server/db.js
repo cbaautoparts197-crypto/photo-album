@@ -120,6 +120,7 @@ async function initDatabase() {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         oe_number TEXT NOT NULL,
         supplier_name TEXT NOT NULL,
+        supplier_id INTEGER REFERENCES suppliers(id) ON DELETE SET NULL,
         unit_price REAL DEFAULT 0,
         currency TEXT DEFAULT 'USD',
         moq INTEGER DEFAULT 1,
@@ -129,6 +130,8 @@ async function initDatabase() {
         updated_at DATETIME DEFAULT (datetime('now', 'localtime'))
       )
     `);
+    // 迁移：为已有 supplier_prices 表添加 supplier_id 字段
+    try { await db.execute(`ALTER TABLE supplier_prices ADD COLUMN supplier_id INTEGER REFERENCES suppliers(id) ON DELETE SET NULL`); } catch(e) {}
 
     await db.execute(`
       CREATE TABLE IF NOT EXISTS inquiries (
