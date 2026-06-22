@@ -1,9 +1,8 @@
 #!/usr/bin/env node
 /**
- * 产品图片缩略图批处理脚本
+ * 产品图片缩略图批处理脚本（基于 R2 文件列表，不依赖 Turso）
  * 
- * 功能：从 Turso DB 查询所有产品图片，下载原图后用 Sharp 生成
- *       200w/400w/800w 缩略图，上传到 R2（跳过已存在的缩略图）。
+ * 功能：列出 R2 bucket 所有对象 → 过滤出原始图片 → 生成 200w/400w/800w WebP 缩略图 → 上传 R2
  * 
  * 使用：node scripts/generate-thumbnails.mjs [--dry-run] [--limit N] [--offset N]
  *   --dry-run  仅列出，不实际生成
@@ -11,17 +10,14 @@
  *   --offset N  从第 N 张开始
  */
 
-import { createClient } from '@libsql/client';
-import sharp from 'sharp';
 import { execSync } from 'child_process';
+import sharp from 'sharp';
 import { existsSync, writeFileSync, unlinkSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import crypto from 'crypto';
 
 // ── 配置（通过环境变量传入） ─────────────────────
-const TURSO_URL = process.env.TURSO_URL || 'libsql://rbs-photo-album-cbaautoparts197-crypto.aws-ap-south-1.turso.io';
-const TURSO_TOKEN = process.env.TURSO_TOKEN;
 const BUCKET = process.env.R2_BUCKET || 'rbs-products';
 const ACCOUNT_ID = process.env.CF_ACCOUNT_ID;
 const API_KEY = process.env.CF_API_KEY;
@@ -29,8 +25,8 @@ const EMAIL = process.env.CF_EMAIL;
 const SITE_BASE = process.env.SITE_BASE || 'https://rbs-autoparts.com';
 const TARGET_SIZES = [200, 400, 800];
 
-if (!TURSO_TOKEN || !ACCOUNT_ID || !API_KEY || !EMAIL) {
-  console.error('❌ Missing required env vars: TURSO_TOKEN, CF_ACCOUNT_ID, CF_API_KEY, CF_EMAIL');
+if (!ACCOUNT_ID || !API_KEY || !EMAIL) {
+  console.error('❌ Missing required env vars: CF_ACCOUNT_ID, CF_API_KEY, CF_EMAIL');
   process.exit(1);
 }
 
@@ -48,35 +44,34 @@ const LIMIT    = parseInt(args[args.indexOf('--limit') + 1] || '0') || Infinity;
 const OFFSET   = parseInt(args[args.indexOf('--offset') + 1] || '0') || 0;
 
 // ── Helpers ────────────────────────────────────────────
-function envStr(obj) {
-  return Object.entries(obj).map(([k, v]) => `${k}=${v}`).join(' ');
-}
 
-/** Retry a function with exponential backoff */
-async function retry(fn, label, maxRetries = 5) {
+/** Run wrangler JSON command with retry */
+async function wranglerJSON(cmd, maxRetries = 3) {
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      return await fn();
+      const stdout = execSync(cmd, {
+        env: { ...process.env, ...WRANGLER_ENV },
+        timeout: 60000,
+        stdio: ['pipe', 'pipe', 'pipe'],
+        encoding: 'utf-8'
+      });
+      return JSON.parse(stdout);
     } catch (e) {
-      if (attempt === maxRetries) throw e;
-      const delay = Math.min(2000 * Math.pow(2, attempt) + Math.random() * 1000, 30000);
-      console.warn(`\n  ⚠️ ${label} failed (attempt ${attempt + 1}/${maxRetries}): ${e.message}. Retrying in ${(delay/1000).toFixed(1)}s...`);
-      await new Promise(r => setTimeout(r, delay));
+      if (attempt === maxRetries) {
+        if (e.stdout) {
+          try { return JSON.parse(e.stdout); } catch {}
+        }
+        throw e;
+      }
+      const delay = Math.min(2000 * Math.pow(2, attempt) + Math.random() * 1000, 10000);
+      console.warn(`\n  ⚠️ wrangler failed (attempt ${attempt + 1}/${maxRetries}), retrying in ${(delay/1000).toFixed(1)}s...`);
+      await sleep(delay);
     }
   }
 }
 
-/** Check if thumbnail already exists on R2 via `wrangler r2 object get` (head) */
-function thumbnailExists(thumbKey) {
-  try {
-    execSync(
-      `npx wrangler r2 object get "${BUCKET}/${thumbKey}" --remote --no-verify 2>&1`,
-      { env: { ...process.env, ...WRANGLER_ENV }, timeout: 15000, stdio: 'pipe' }
-    );
-    return true;
-  } catch {
-    return false;
-  }
+function sleep(ms) {
+  return new Promise(r => setTimeout(r, ms));
 }
 
 /** Upload a file to R2 with retry */
@@ -90,7 +85,7 @@ async function uploadToR2(key, filePath, contentType = 'image/webp', maxRetries 
       if (attempt === maxRetries) throw e;
       const delay = 3000 * Math.pow(2, attempt);
       console.warn(`  ⚠️ R2 upload retry ${attempt + 1}/${maxRetries} in ${delay/1000}s`);
-      await new Promise(r => setTimeout(r, delay));
+      await sleep(delay);
     }
   }
 }
@@ -101,7 +96,27 @@ function thumbKey(originalKey, width) {
   return `${base}_${width}w.webp`;
 }
 
-/** Download image from live site with timeout */
+/** Extract base key from a thumbnail key */
+function baseKeyFromThumb(key) {
+  return key.replace(/_\d+w\.webp$/, '');
+}
+
+/** Is this key an existing thumbnail? */
+function isThumbnailKey(key) {
+  return /_\d+w\.webp$/.test(key);
+}
+
+/** Is this key a watermarked version? */
+function isWatermarkKey(key) {
+  return /watermark/i.test(key);
+}
+
+/** Is this an image file extension? */
+function isImageFile(key) {
+  return /\.(jpg|jpeg|png|webp|gif|bmp|svg)$/i.test(key);
+}
+
+/** Download image from live site with retry + timeout */
 async function downloadImage(key) {
   const url = `${SITE_BASE}/r2-files/${encodeURIComponent(key)}`;
   const controller = new AbortController();
@@ -131,37 +146,105 @@ async function generateThumbs(buffer) {
   return results;
 }
 
+/** List ALL objects from R2 bucket using pagination */
+async function listAllObjects() {
+  console.log('📋 Listing all objects in R2 bucket (this may take a minute)...');
+  const allObjects = [];
+  let cursor = null;
+  let pageNum = 0;
+  
+  while (true) {
+    pageNum++;
+    const cursorArg = cursor ? `--cursor="${cursor}"` : '';
+    const cmd = `npx wrangler r2 object list "${BUCKET}" --remote --json ${cursorArg} --per-page=1000`;
+    
+    try {
+      const result = await wranglerJSON(cmd);
+      const objects = result.result || result || [];
+      if (objects.length > 0) {
+        allObjects.push(...objects);
+      }
+      process.stdout.write(`\r  Page ${pageNum}: ${objects.length} objects, total: ${allObjects.length}`);
+      
+      cursor = result.truncated && objects.length > 0 ? objects[objects.length - 1].key : null;
+      if (!cursor) break;
+      
+      // Rate limit between pages
+      await sleep(200);
+    } catch (e) {
+      console.warn(`\n  ⚠️ List page ${pageNum} failed: ${e.message}`);
+      break;
+    }
+  }
+  
+  console.log(`\n📊 Total R2 objects: ${allObjects.length}`);
+  return allObjects;
+}
+
 // ── Main ──────────────────────────────────────────────
 async function main() {
-  console.log('🔧 Connecting to Turso...');
-  const db = createClient({ url: TURSO_URL, authToken: TURSO_TOKEN });
-
-  // Collect all unique image keys from products + product_images
-  console.log('📋 Querying product images...');
-  const queryFn = async (sql) => retry(() => db.execute(sql), 'DB query', 5);
+  // Step 1: List all R2 objects
+  const allObjects = await listAllObjects();
   
-  const keys = new Set();
-
-  const pRes = await queryFn("SELECT DISTINCT qiniu_key FROM products WHERE qiniu_key IS NOT NULL AND qiniu_key != '' ORDER BY qiniu_key");
-  pRes.rows.forEach(r => keys.add(r.qiniu_key));
-
-  try {
-    const piRes = await queryFn("SELECT DISTINCT qiniu_key FROM product_images WHERE qiniu_key IS NOT NULL AND qiniu_key != '' ORDER BY qiniu_key");
-    piRes.rows.forEach(r => keys.add(r.qiniu_key));
-  } catch (e) {
-    console.warn('⚠️  product_images 表可能不存在，跳过');
+  // Step 2: Filter to get unique original images
+  // Strategy: collect all keys, then exclude watermarked + thumbnail keys
+  const allKeys = allObjects.map(o => o.key);
+  const thumbnailSet = new Set();
+  const watermarkSet = new Set();
+  const originalKeys = new Set();
+  
+  for (const key of allKeys) {
+    if (isWatermarkKey(key)) {
+      watermarkSet.add(key);
+      continue;
+    }
+    if (isThumbnailKey(key)) {
+      thumbnailSet.add(key);
+      continue;
+    }
+    if (isImageFile(key)) {
+      originalKeys.add(key);
+    }
   }
-
-  const keyList = Array.from(keys).slice(OFFSET, OFFSET + LIMIT);
-  console.log(`📸 Found ${keys.size} unique images, processing ${keyList.length} (offset=${OFFSET}, limit=${LIMIT === Infinity ? 'all' : LIMIT})`);
+  
+  console.log(`\n📸 Analysis:`);
+  console.log(`   Original images: ${originalKeys.size}`);
+  console.log(`   Existing thumbnails: ${thumbnailSet.size}`);
+  console.log(`   Watermarked copies: ${watermarkSet.size}`);
+  
+  // Step 3: Filter to keys that DO need thumbs generated
+  // A key needs processing if at least one thumb size doesn't exist
+  const needsProcessing = [];
+  for (const key of originalKeys) {
+    let missing = false;
+    for (const w of TARGET_SIZES) {
+      const tKey = thumbKey(key, w);
+      if (!thumbnailSet.has(tKey)) {
+        missing = true;
+        break;
+      }
+    }
+    if (missing) needsProcessing.push(key);
+  }
+  
+  console.log(`   Need processing: ${needsProcessing.length} (missing >=1 thumbnail sizes)`);
+  
+  const keyList = needsProcessing.slice(OFFSET, OFFSET + LIMIT);
+  console.log(`   This batch: ${keyList.length} (offset=${OFFSET}, limit=${LIMIT === Infinity ? 'all' : LIMIT})`);
+  
   if (DRY_RUN) {
-    console.log('🔍 DRY RUN — listing keys only:');
+    console.log('\n🔍 DRY RUN — listing keys only:');
     keyList.forEach(k => console.log(`  ${k}`));
-    await db.close();
+    return;
+  }
+  
+  if (keyList.length === 0) {
+    console.log('✅ Nothing to do!');
     return;
   }
 
-  let generated = 0, errors = 0;
+  // Step 4: Process each image
+  let generated = 0, errors = 0, skipped = 0;
   const startTime = Date.now();
 
   for (let i = 0; i < keyList.length; i++) {
@@ -169,22 +252,42 @@ async function main() {
     const pct = ((i + 1) / keyList.length * 100).toFixed(1);
     
     try {
-      // Download original (with retry)
+      // Download original
       process.stdout.write(`\n  ⬇ ${key}`);
-      const buffer = await retry(() => downloadImage(key), `download ${key}`, 3);
+      let buffer;
+      for (let attempt = 0; attempt <= 3; attempt++) {
+        try {
+          buffer = await downloadImage(key);
+          break;
+        } catch (e) {
+          if (attempt === 3) throw e;
+          const delay = Math.min(2000 * Math.pow(2, attempt), 10000);
+          process.stdout.write(` [retry ${attempt+1}/3]`);
+          await sleep(delay);
+        }
+      }
       
       // Generate thumbnails
       process.stdout.write(` → resizing...`);
       const thumbs = await generateThumbs(buffer);
       
-      // Upload thumbnails (overwrite if exists — no pre-check)
+      // Upload thumbnails
       let uploaded = 0;
       for (const w of TARGET_SIZES) {
         const tKey = thumbKey(key, w);
+        
+        // Skip if already exists (from a previous partial run)
+        if (thumbnailSet.has(tKey)) {
+          uploaded++;
+          process.stdout.write(` ${w}w(✓)`);
+          continue;
+        }
+        
         const tmpFile = join(tmpdir(), `rbs_thumb_${w}_${crypto.randomBytes(4).toString('hex')}.webp`);
         writeFileSync(tmpFile, thumbs[w]);
         try {
           await uploadToR2(tKey, tmpFile);
+          thumbnailSet.add(tKey); // Track so we don't re-check
           uploaded++;
           process.stdout.write(` ${w}w`);
         } finally {
@@ -202,16 +305,15 @@ async function main() {
 
     if (i % 10 === 0) {
       const elapsed = ((Date.now() - startTime) / 1000).toFixed(0);
-      process.stdout.write(`\n[${pct}%] ${i+1}/${keyList.length} — ${generated} generated, ${errors} errors (${elapsed}s)`);
+      process.stdout.write(`\n[${pct}%] ${i+1}/${keyList.length} — ${generated} gen, ${skipped} skip, ${errors} err (${elapsed}s)`);
     }
 
-    // Rate limiting: 500ms between images to avoid flooding CDN
-    await new Promise(r => setTimeout(r, 500));
+    // Rate limiting
+    await sleep(500);
   }
 
   const totalTime = ((Date.now() - startTime) / 1000).toFixed(0);
-  console.log(`\n\n✅ Done! ${generated} generated, ${errors} errors in ${totalTime}s`);
-  await db.close();
+  console.log(`\n\n✅ Done! ${generated} generated, ${skipped} skipped, ${errors} errors in ${totalTime}s`);
 }
 
 main().catch(e => {

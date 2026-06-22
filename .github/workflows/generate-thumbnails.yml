@@ -4,19 +4,21 @@ on:
   workflow_dispatch:
     inputs:
       chunk_size:
-        description: '每批处理的图片数量 (每批约1小时)'
+        description: '每批处理的图片数量'
         required: false
         default: '200'
         type: string
 
 jobs:
-  # 直接使用 60 个固定分片（200张/批 × 60 = 12,000，覆盖 11,946 张）
+  # 每个 job 独立从 R2 列出所有对象 → 排序 → 取自己的分片处理
+  # R2 列表是只读操作，多 job 并行无冲突
+  # thumbnails 上传是幂等的（overwrite），重复处理也安全
   generate:
     runs-on: ubuntu-latest
     continue-on-error: true
     strategy:
       fail-fast: false
-      max-parallel: 5
+      max-parallel: 4
       matrix:
         chunk: [
           0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
@@ -48,8 +50,6 @@ jobs:
           echo "=== Processing offset=$OFFSET limit=$CHUNK_SIZE ==="
           node scripts/generate-thumbnails.mjs --offset $OFFSET --limit $CHUNK_SIZE
         env:
-          TURSO_URL: ${{ secrets.TURSO_URL }}
-          TURSO_TOKEN: ${{ secrets.TURSO_TOKEN }}
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           CF_API_KEY: ${{ secrets.CF_API_KEY }}
           CF_EMAIL: ${{ secrets.CF_EMAIL }}
