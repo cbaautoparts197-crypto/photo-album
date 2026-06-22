@@ -1,0 +1,72 @@
+name: Generate Product Thumbnails
+
+on:
+  workflow_dispatch:
+    inputs:
+      chunk_size:
+        description: '每批处理的图片数量 (每批约1小时)'
+        required: false
+        default: '200'
+        type: string
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      total: ${{ steps.count.outputs.total }}
+      matrix: ${{ steps.count.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install deps
+        working-directory: worker
+        run: npm install
+
+      - name: Count images and generate matrix
+        id: count
+        working-directory: worker
+        run: |
+          CHUNK_SIZE=${{ github.event.inputs.chunk_size || 200 }}
+          node scripts/count-images.mjs $CHUNK_SIZE > count_output.txt
+          cat count_output.txt >> $GITHUB_OUTPUT
+        env:
+          TURSO_URL: ${{ secrets.TURSO_URL }}
+          TURSO_TOKEN: ${{ secrets.TURSO_TOKEN }}
+
+  generate:
+    needs: plan
+    if: needs.plan.outputs.matrix != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix:
+        chunk: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install deps
+        working-directory: worker
+        run: npm install
+
+      - name: Generate thumbnails (chunk ${{ matrix.chunk }})
+        working-directory: worker
+        run: |
+          CHUNK_SIZE=${{ github.event.inputs.chunk_size || 200 }}
+          OFFSET=$(( ${{ matrix.chunk }} * CHUNK_SIZE ))
+          echo "Processing offset=$OFFSET limit=$CHUNK_SIZE"
+          node scripts/generate-thumbnails.mjs --offset $OFFSET --limit $CHUNK_SIZE
+        env:
+          TURSO_URL: ${{ secrets.TURSO_URL }}
+          TURSO_TOKEN: ${{ secrets.TURSO_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          CF_API_KEY: ${{ secrets.CF_API_KEY }}
+          CF_EMAIL: ${{ secrets.CF_EMAIL }}
