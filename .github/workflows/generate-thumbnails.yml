@@ -10,42 +10,22 @@ on:
         type: string
 
 jobs:
-  plan:
-    runs-on: ubuntu-latest
-    outputs:
-      total: ${{ steps.count.outputs.total }}
-      matrix: ${{ steps.count.outputs.matrix }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
-      - name: Install deps
-        working-directory: worker
-        run: npm install
-
-      - name: Count images and generate matrix
-        id: count
-        working-directory: worker
-        run: |
-          CHUNK_SIZE=${{ github.event.inputs.chunk_size || 200 }}
-          node scripts/count-images.mjs $CHUNK_SIZE > count_output.txt
-          cat count_output.txt >> $GITHUB_OUTPUT
-        env:
-          TURSO_URL: ${{ secrets.TURSO_URL }}
-          TURSO_TOKEN: ${{ secrets.TURSO_TOKEN }}
-
+  # 直接使用 60 个固定分片（200张/批 × 60 = 12,000，覆盖 11,946 张）
   generate:
-    needs: plan
-    if: needs.plan.outputs.matrix != '[]'
     runs-on: ubuntu-latest
+    continue-on-error: true
     strategy:
       fail-fast: false
       max-parallel: 20
       matrix:
-        chunk: ${{ fromJSON(needs.plan.outputs.matrix) }}
+        chunk: [
+          0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
+          10,11,12,13,14,15,16,17,18,19,
+          20,21,22,23,24,25,26,27,28,29,
+          30,31,32,33,34,35,36,37,38,39,
+          40,41,42,43,44,45,46,47,48,49,
+          50,51,52,53,54,55,56,57,58,59
+        ]
     steps:
       - uses: actions/checkout@v4
 
@@ -53,16 +33,19 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Install deps
+      - name: Install system deps (for sharp)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libvips-dev 2>/dev/null || true
+
+      - name: Install npm deps
         working-directory: worker
         run: npm install
 
-      - name: Generate thumbnails (chunk ${{ matrix.chunk }})
+      - name: Generate thumbnails (chunk ${{ matrix.chunk }}/59)
         working-directory: worker
         run: |
           CHUNK_SIZE=${{ github.event.inputs.chunk_size || 200 }}
-          OFFSET=$(( ${{ matrix.chunk }} * CHUNK_SIZE ))
-          echo "Processing offset=$OFFSET limit=$CHUNK_SIZE"
+          OFFSET=$((${{ matrix.chunk }} * CHUNK_SIZE))
+          echo "=== Processing offset=$OFFSET limit=$CHUNK_SIZE ==="
           node scripts/generate-thumbnails.mjs --offset $OFFSET --limit $CHUNK_SIZE
         env:
           TURSO_URL: ${{ secrets.TURSO_URL }}
