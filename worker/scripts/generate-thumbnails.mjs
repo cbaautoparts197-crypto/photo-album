@@ -52,6 +52,20 @@ function envStr(obj) {
   return Object.entries(obj).map(([k, v]) => `${k}=${v}`).join(' ');
 }
 
+/** Retry a function with exponential backoff */
+async function retry(fn, label, maxRetries = 5) {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (e) {
+      if (attempt === maxRetries) throw e;
+      const delay = Math.min(2000 * Math.pow(2, attempt) + Math.random() * 1000, 30000);
+      console.warn(`\n  ⚠️ ${label} failed (attempt ${attempt + 1}/${maxRetries}): ${e.message}. Retrying in ${(delay/1000).toFixed(1)}s...`);
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
+}
+
 /** Check if thumbnail already exists on R2 via `wrangler r2 object get` (head) */
 function thumbnailExists(thumbKey) {
   try {
@@ -65,10 +79,20 @@ function thumbnailExists(thumbKey) {
   }
 }
 
-/** Upload a file to R2 */
-function uploadToR2(key, filePath, contentType = 'image/webp') {
+/** Upload a file to R2 with retry */
+async function uploadToR2(key, filePath, contentType = 'image/webp', maxRetries = 3) {
   const cmd = `npx wrangler r2 object put "${BUCKET}/${key}" --file="${filePath}" --remote --content-type="${contentType}" --cache-control="public, max-age=31536000, immutable"`;
-  execSync(cmd, { env: { ...process.env, ...WRANGLER_ENV }, timeout: 30000, stdio: 'pipe' });
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      execSync(cmd, { env: { ...process.env, ...WRANGLER_ENV }, timeout: 60000, stdio: 'pipe' });
+      return;
+    } catch (e) {
+      if (attempt === maxRetries) throw e;
+      const delay = 3000 * Math.pow(2, attempt);
+      console.warn(`  ⚠️ R2 upload retry ${attempt + 1}/${maxRetries} in ${delay/1000}s`);
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
 }
 
 /** Generate thumbnail key: products/xxx/abc.webp → products/xxx/abc_400w.webp */
@@ -77,12 +101,21 @@ function thumbKey(originalKey, width) {
   return `${base}_${width}w.webp`;
 }
 
-/** Download image from live site */
+/** Download image from live site with timeout */
 async function downloadImage(key) {
   const url = `${SITE_BASE}/r2-files/${encodeURIComponent(key)}`;
-  const resp = await fetch(url, { headers: { 'User-Agent': 'RBS-ThumbnailGen/1.0' } });
-  if (!resp.ok) throw new Error(`HTTP ${resp.status} for ${url}`);
-  return Buffer.from(await resp.arrayBuffer());
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30000);
+  try {
+    const resp = await fetch(url, {
+      headers: { 'User-Agent': 'RBS-ThumbnailGen/1.0' },
+      signal: controller.signal
+    });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status} for ${url}`);
+    return Buffer.from(await resp.arrayBuffer());
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 /** Generate sized thumbnails from buffer */
@@ -105,13 +138,15 @@ async function main() {
 
   // Collect all unique image keys from products + product_images
   console.log('📋 Querying product images...');
+  const queryFn = async (sql) => retry(() => db.execute(sql), 'DB query', 5);
+  
   const keys = new Set();
 
-  const pRes = await db.execute("SELECT DISTINCT qiniu_key FROM products WHERE qiniu_key IS NOT NULL AND qiniu_key != ''");
+  const pRes = await queryFn("SELECT DISTINCT qiniu_key FROM products WHERE qiniu_key IS NOT NULL AND qiniu_key != '' ORDER BY qiniu_key");
   pRes.rows.forEach(r => keys.add(r.qiniu_key));
 
   try {
-    const piRes = await db.execute("SELECT DISTINCT qiniu_key FROM product_images WHERE qiniu_key IS NOT NULL AND qiniu_key != ''");
+    const piRes = await queryFn("SELECT DISTINCT qiniu_key FROM product_images WHERE qiniu_key IS NOT NULL AND qiniu_key != '' ORDER BY qiniu_key");
     piRes.rows.forEach(r => keys.add(r.qiniu_key));
   } catch (e) {
     console.warn('⚠️  product_images 表可能不存在，跳过');
@@ -134,9 +169,9 @@ async function main() {
     const pct = ((i + 1) / keyList.length * 100).toFixed(1);
     
     try {
-      // Download original
+      // Download original (with retry)
       process.stdout.write(`\n  ⬇ ${key}`);
-      const buffer = await downloadImage(key);
+      const buffer = await retry(() => downloadImage(key), `download ${key}`, 3);
       
       // Generate thumbnails
       process.stdout.write(` → resizing...`);
@@ -149,7 +184,7 @@ async function main() {
         const tmpFile = join(tmpdir(), `rbs_thumb_${w}_${crypto.randomBytes(4).toString('hex')}.webp`);
         writeFileSync(tmpFile, thumbs[w]);
         try {
-          uploadToR2(tKey, tmpFile);
+          await uploadToR2(tKey, tmpFile);
           uploaded++;
           process.stdout.write(` ${w}w`);
         } finally {
